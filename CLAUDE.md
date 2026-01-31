@@ -11,7 +11,7 @@ Building a HubSpot-native plugin that identifies dormant leads and re-engages th
 - **Backend**: NestJS (TypeScript)
 - **Database**: PostgreSQL 17 with TypeORM
 - **Cache/Queue**: Redis 7 + Bull
-- **AI**: Claude API (Anthropic)
+- **AI**: OpenAI API (GPT-4o)
 - **Email**: SendGrid
 - **SMS**: Twilio
 - **CRM**: HubSpot API
@@ -31,7 +31,7 @@ Building a HubSpot-native plugin that identifies dormant leads and re-engages th
   - Integration tests for API endpoints
   - E2E tests for critical user flows
 - Test file naming: `*.spec.ts` for unit tests, `*.e2e-spec.ts` for E2E tests
-- Use mocks for external services (HubSpot, Claude, SendGrid, Twilio)
+- Use mocks for external services (HubSpot, OpenAI, SendGrid, Twilio)
 - Run tests before committing: `npm run test`
 - All tests must pass before marking a feature complete
 
@@ -148,7 +148,7 @@ src/
 └── test/
     ├── mocks/                           # Shared mocks
     │   ├── hubspot.mock.ts
-    │   ├── claude.mock.ts
+    │   ├── openai.mock.ts
     │   ├── sendgrid.mock.ts
     │   └── twilio.mock.ts
     ├── fixtures/                        # Test data
@@ -201,7 +201,7 @@ HUBSPOT_CLIENT_SECRET
 HUBSPOT_APP_ID
 DATABASE_URL
 REDIS_URL
-ANTHROPIC_API_KEY
+OPENAI_API_KEY
 SENDGRID_API_KEY
 TWILIO_ACCOUNT_SID
 TWILIO_AUTH_TOKEN
@@ -222,7 +222,7 @@ When completing work, update the relevant milestone file:
 Current milestone files:
 - `milestones/01-foundation.md` - OAuth, database, basic setup
 - `milestones/02-dormancy-detection.md` - Lead identification
-- `milestones/03-ai-integration.md` - Claude API, message generation
+- `milestones/03-ai-integration.md` - OpenAI API, message generation
 - `milestones/04-sending-infrastructure.md` - Email/SMS sending
 - `milestones/05-response-handling.md` - Webhooks, classification
 - `milestones/06-analytics-dashboard.md` - Metrics, settings

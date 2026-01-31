@@ -1,21 +1,21 @@
 # Milestone 3: AI Integration
 
 ## Objective
-Integrate Claude API to generate personalized reactivation messages based on contact context and history.
+Integrate OpenAI API to generate personalized reactivation messages based on contact context and history.
 
 ---
 
 ## Features
 
-### 3.1 Claude API Integration
-**TDD Approach: Use mocked Claude API responses for all tests**
-- [ ] Create Claude API mock for testing
+### 3.1 OpenAI API Integration
+**TDD Approach: Use mocked OpenAI API responses for all tests**
+- [ ] Create OpenAI API mock for testing
 - [ ] Write tests for AI service wrapper
   - [ ] Test successful message generation
   - [ ] Test retry logic with exponential backoff
   - [ ] Test rate limiting behavior
   - [ ] Test token usage tracking
-- [ ] Set up Anthropic SDK
+- [ ] Set up OpenAI SDK
 - [ ] Create AI service wrapper (make tests pass)
 - [ ] Implement retry logic with exponential backoff
 - [ ] Handle rate limiting
@@ -84,6 +84,11 @@ Integrate Claude API to generate personalized reactivation messages based on con
 
 ## Technical Details
 
+### OpenAI Model Selection
+- **Primary Model**: `gpt-4o` for high-quality message generation
+- **Fallback Model**: `gpt-4o-mini` for cost optimization
+- **Temperature**: 0.7-0.9 for creative variation
+
 ### System Prompt Template
 ```
 You are an expert B2B sales copywriter. Generate a personalized
@@ -118,6 +123,7 @@ interface ContactContext {
 
 ### Key Files to Create
 - `src/ai/ai.module.ts`
+- `src/ai/services/openai.service.ts`
 - `src/ai/services/generator.service.ts`
 - `src/ai/services/context.service.ts`
 - `src/ai/services/prompt.service.ts`
@@ -127,7 +133,7 @@ interface ContactContext {
 ---
 
 ## Acceptance Criteria
-- [ ] Claude API integration working
+- [ ] OpenAI API integration working
 - [ ] Context pulled from HubSpot for each contact
 - [ ] Messages generated with personalization
 - [ ] Multiple variants generated per contact
@@ -136,7 +142,8 @@ interface ContactContext {
 - [ ] Messages sound natural and relevant
 
 ## Testing Requirements (TDD)
-- [ ] Claude API mock implementation
+- [ ] OpenAI API mock implementation
+- [ ] Unit tests for OpenAI service (>80% coverage)
 - [ ] Unit tests for generator service (>80% coverage)
 - [ ] Unit tests for context service (>80% coverage)
 - [ ] Unit tests for prompt service (>80% coverage)

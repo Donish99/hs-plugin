@@ -67,7 +67,7 @@ describe('OutreachRecord Entity', () => {
   describe('AI metadata', () => {
     it('should track AI token usage', () => {
       const record = new OutreachRecord();
-      record.aiModel = 'claude-sonnet-4-20250514';
+      record.aiModel = 'gpt-4o';
       record.aiPromptTokens = 150;
       record.aiCompletionTokens = 75;
 

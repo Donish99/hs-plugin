@@ -18,7 +18,7 @@ cd hubspot-dormant-leads
 npm install @hubspot/api-client
 
 # AI
-npm install @anthropic-ai/sdk
+npm install openai
 
 # Email & SMS
 npm install @sendgrid/mail twilio

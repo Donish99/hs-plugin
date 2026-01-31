@@ -49,7 +49,7 @@ Set up webhook processing to detect responses and automatically take appropriate
   - [ ] Test error handling for failed classifications
 - [ ] Detect incoming replies
 - [ ] Fetch reply content from HubSpot
-- [ ] Classify response using Claude (make tests pass):
+- [ ] Classify response using OpenAI (make tests pass):
   - **Interested**: Wants to continue conversation
   - **Not now**: Timing not right, follow up later
   - **Not interested**: Polite decline

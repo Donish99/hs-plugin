@@ -27,7 +27,7 @@ export interface RedisConfig {
 }
 
 export interface AiConfig {
-  anthropicApiKey: string;
+  openaiApiKey: string;
   model: string;
   maxTokens: number;
 }
@@ -94,8 +94,8 @@ export default (): Configuration => ({
     url: process.env.REDIS_URL || 'redis://localhost:6379',
   },
   ai: {
-    anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
-    model: 'claude-sonnet-4-20250514',
+    openaiApiKey: process.env.OPENAI_API_KEY || '',
+    model: 'gpt-4o',
     maxTokens: 500,
   },
   email: {

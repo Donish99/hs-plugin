@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
 /**
- * AI module - handles Claude API integration and message generation
+ * AI module - handles OpenAI API integration and message generation
  */
 @Module({
   imports: [],

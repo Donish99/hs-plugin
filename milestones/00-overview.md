@@ -11,7 +11,7 @@ HubSpot-native plugin that automatically identifies dormant leads and re-engages
 |---|-----------|--------|-------------|
 | 1 | [Foundation](./01-foundation.md) | Not Started | HubSpot OAuth, NestJS setup, database |
 | 2 | [Dormancy Detection](./02-dormancy-detection.md) | Not Started | Criteria config, scanning, lead identification |
-| 3 | [AI Integration](./03-ai-integration.md) | Not Started | Claude API, prompt engineering, message generation |
+| 3 | [AI Integration](./03-ai-integration.md) | Not Started | OpenAI API, prompt engineering, message generation |
 | 4 | [Sending Infrastructure](./04-sending-infrastructure.md) | Not Started | Email/SMS providers, HubSpot logging |
 | 5 | [Response Handling](./05-response-handling.md) | Not Started | Webhooks, classification, auto-actions |
 | 6 | [Analytics & Dashboard](./06-analytics-dashboard.md) | Not Started | Performance metrics, ROI tracking, settings UI |
@@ -23,7 +23,7 @@ HubSpot-native plugin that automatically identifies dormant leads and re-engages
 - **Backend**: NestJS (TypeScript)
 - **Database**: PostgreSQL 17
 - **Cache/Queue**: Redis 7 + Bull
-- **AI**: Claude API (Anthropic)
+- **AI**: OpenAI API (GPT-4o)
 - **Email**: SendGrid (or HubSpot Transactional)
 - **SMS**: Twilio
 - **Hosting**: AWS/GCP
@@ -50,7 +50,7 @@ This project follows **Test-Driven Development (TDD)**. Every feature must be de
 
 ## Key Dependencies
 - HubSpot Developer Account
-- Anthropic API Key
+- OpenAI API Key
 - SendGrid API Key
 - Twilio Account
 - PostgreSQL Database

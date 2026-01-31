@@ -24,7 +24,7 @@
     "migration:revert": "pnpm typeorm migration:revert -d src/config/database.config.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.27.0",
+    "openai": "^4.52.0",
     "dotenv": "^16.3.1",
     "@hubspot/api-client": "^11.0.0",
     "@nestjs/bull": "^10.1.0",

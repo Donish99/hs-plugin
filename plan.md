@@ -121,7 +121,7 @@ Your plugin can work with different tiers, but some features require specific pl
                     ┌──────────────┼──────────────┐
                     │              │              │
             ┌───────▼──────┐ ┌─────▼─────┐ ┌─────▼─────┐
-            │  Claude API  │ │  Twilio   │ │ SendGrid  │
+            │  OpenAI API  │ │  Twilio   │ │ SendGrid  │
             │  (AI Text)   │ │   (SMS)   │ │  (Email)  │
             └──────────────┘ └───────────┘ └───────────┘
                                    │
@@ -137,7 +137,7 @@ Your plugin can work with different tiers, but some features require specific pl
 | **OAuth Service** | NestJS module | Token storage, refresh, validation |
 | **Webhook Handler** | NestJS + Bull Queue | Process HubSpot events asynchronously |
 | **Dormancy Detector** | Scheduled job | Identify leads meeting dormancy criteria |
-| **AI Generator** | Claude API | Generate personalized messages |
+| **AI Generator** | OpenAI API | Generate personalized messages |
 | **Campaign Executor** | NestJS service | Orchestrate sending via multiple channels |
 | **Database** | PostgreSQL | Store settings, campaigns, logs |
 | **Cache** | Redis | Token cache, rate limiting, job queue |
@@ -356,7 +356,7 @@ POST /marketing/v3/transactional/single-email/send
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Campaign   │     │   Contact   │     │  Claude AI  │     │   Review    │
+│  Campaign   │     │   Contact   │     │  OpenAI     │     │   Review    │
 │   Queue     │────▶│   Context   │────▶│  Generate   │────▶│  (Optional) │
 │             │     │  Gathering  │     │   Message   │     │             │
 └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
@@ -561,14 +561,13 @@ async generateVariants(contact: Contact, count: number = 3): Promise<EmailVarian
   const variants = [];
   
   for (const tone of ['casual', 'professional', 'curious']) {
-    const response = await this.claude.messages.create({
-      model: 'claude-sonnet-4-20250514',
+    const response = await this.openai.chat.completions.create({
+      model: 'gpt-4o',
       max_tokens: 500,
-      system: systemPrompt,
-      messages: [{
-        role: 'user',
-        content: `${userPrompt}\n\nTone: ${tone}`
-      }]
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `${userPrompt}\n\nTone: ${tone}` }
+      ]
     });
     
     variants.push({
@@ -877,8 +876,8 @@ async validateWebhook(req: Request): Promise<boolean> {
                                                                            │
                     External Services                                       │
                     ┌─────────────┐  ┌─────────────┐  ┌─────────────┐      │
-                    │ Claude API  │  │   Twilio    │  │  SendGrid   │      │
-                    │ (Anthropic) │  │             │  │             │      │
+                    │ OpenAI API  │  │   Twilio    │  │  SendGrid   │      │
+                    │   (GPT-4o)  │  │             │  │             │      │
                     └─────────────┘  └─────────────┘  └─────────────┘      │
 ```
 
@@ -896,7 +895,7 @@ DATABASE_URL=postgresql://user:pass@host:5432/dbname
 REDIS_URL=redis://host:6379
 
 # AI
-ANTHROPIC_API_KEY=sk-ant-xxxxx
+OPENAI_API_KEY=sk-xxxxx
 
 # Email
 SENDGRID_API_KEY=SG.xxxxx
@@ -982,7 +981,7 @@ You can add a custom UI card in HubSpot contact/deal records:
 - [ ] Dashboard showing dormant leads
 
 ### Phase 3: AI Integration (Weeks 6-7)
-- [ ] Claude API integration
+- [ ] OpenAI API integration
 - [ ] Prompt engineering & testing
 - [ ] Message generation service
 - [ ] A/B variant generation
@@ -1022,7 +1021,7 @@ nest new hubspot-dormant-leads
 cd hubspot-dormant-leads
 
 # Install dependencies
-npm install @hubspot/api-client @anthropic-ai/sdk
+npm install @hubspot/api-client openai
 npm install @sendgrid/mail twilio
 npm install @nestjs/bull bull
 npm install @nestjs/typeorm typeorm pg
