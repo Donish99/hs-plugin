@@ -10,6 +10,8 @@ import { CampaignsModule } from './campaigns/campaigns.module';
 import { AiModule } from './ai/ai.module';
 import { OutreachModule } from './outreach/outreach.module';
 import { JobsModule } from './jobs/jobs.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { SettingsModule } from './settings/settings.module';
 import { getDatabaseConfig } from './config/database.config';
 
 @Module({
@@ -29,6 +31,8 @@ import { getDatabaseConfig } from './config/database.config';
     AiModule,
     OutreachModule,
     JobsModule,
+    AnalyticsModule,
+    SettingsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],
