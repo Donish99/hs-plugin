@@ -1,0 +1,18 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^@/(.*)$": "<rootDir>/../src/$1",
+    "^@config/(.*)$": "<rootDir>/../src/config/$1",
+    "^@hubspot/(.*)$": "<rootDir>/../src/hubspot/$1",
+    "^@campaigns/(.*)$": "<rootDir>/../src/campaigns/$1",
+    "^@ai/(.*)$": "<rootDir>/../src/ai/$1",
+    "^@outreach/(.*)$": "<rootDir>/../src/outreach/$1",
+    "^@test/(.*)$": "<rootDir>/../src/test/$1"
+  }
+}
