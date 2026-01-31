@@ -70,6 +70,15 @@ export class HubspotAccount {
   @Column({ type: 'int', default: 0, name: 'emails_sent_this_month' })
   emailsSentThisMonth: number = 0;
 
+  @Column({ type: 'boolean', default: true, name: 'is_active' })
+  isActive: boolean = true;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'last_synced_at' })
+  lastSyncedAt?: Date;
+
+  @Column({ type: 'varchar', length: 50, nullable: true, name: 'sync_status' })
+  syncStatus?: 'pending' | 'syncing' | 'completed' | 'failed';
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 

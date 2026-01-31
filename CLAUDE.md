@@ -9,8 +9,8 @@ Building a HubSpot-native plugin that identifies dormant leads and re-engages th
 
 ## Tech Stack
 - **Backend**: NestJS (TypeScript)
-- **Database**: PostgreSQL with TypeORM
-- **Cache/Queue**: Redis + Bull
+- **Database**: PostgreSQL 17 with TypeORM
+- **Cache/Queue**: Redis 7 + Bull
 - **AI**: Claude API (Anthropic)
 - **Email**: SendGrid
 - **SMS**: Twilio

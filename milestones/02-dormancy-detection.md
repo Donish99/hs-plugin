@@ -9,7 +9,7 @@ Build the system to identify dormant leads based on configurable criteria and su
 
 ### 2.1 Dormancy Criteria Configuration
 **TDD Approach: Write tests before implementing each feature**
-- [ ] Define dormancy criteria schema:
+- [x] Define dormancy criteria schema:
   - Minimum days inactive
   - No email opens in X days
   - No email clicks in X days
@@ -17,55 +17,55 @@ Build the system to identify dormant leads based on configurable criteria and su
   - Specific deal stages (stalled)
   - Minimum lead score threshold
   - Exclusion tags/lists
-- [ ] Write tests for dormancy rules service
-  - [ ] Test CRUD operations
-  - [ ] Test validation logic
-  - [ ] Test multi-tenant isolation
-- [ ] Create CRUD API for dormancy rules (make tests pass)
-- [ ] Support multiple rules per account
-- [ ] Rule activation/deactivation toggle
+- [x] Write tests for dormancy rules service
+  - [x] Test CRUD operations
+  - [x] Test validation logic
+  - [x] Test multi-tenant isolation
+- [x] Create CRUD API for dormancy rules (make tests pass)
+- [x] Support multiple rules per account
+- [x] Rule activation/deactivation toggle
 
 ### 2.2 Contact Search & Filtering
-- [ ] Build HubSpot search query builder
-- [ ] Implement filter combinations:
+- [x] Build HubSpot search query builder
+- [x] Implement filter combinations:
   - `notes_last_contacted` older than X
   - `hs_email_last_open_date` older than X
   - `hs_email_last_click_date` older than X
   - `hs_analytics_last_visit_timestamp` older than X
   - Deal stage filters
-- [ ] Handle pagination for large result sets
-- [ ] Implement caching for repeated queries
+- [x] Handle pagination for large result sets
+- [x] Implement caching for repeated queries
 
 ### 2.3 Scheduled Dormancy Scanner
-- [ ] Create cron job for daily scanning
-- [ ] Process each account's dormancy rules
-- [ ] Batch contacts matching criteria
-- [ ] Create campaign records for matched contacts
-- [ ] Implement incremental scanning (delta)
-- [ ] Add scan status logging
+- [x] Create cron job for daily scanning
+- [x] Process each account's dormancy rules
+- [x] Batch contacts matching criteria
+- [x] Create campaign records for matched contacts
+- [x] Implement incremental scanning (delta)
+- [x] Add scan status logging
 
 ### 2.4 Dormancy Detection Service
 **TDD Approach: Test scoring algorithms thoroughly**
-- [ ] Write tests for dormancy analysis engine
-  - [ ] Test dormancy score calculation
-  - [ ] Test prioritization algorithms
-  - [ ] Test edge cases (missing data, zero values)
-- [ ] Build dormancy analysis engine (make tests pass)
-- [ ] Calculate dormancy score per contact
-- [ ] Prioritize leads by:
+- [x] Write tests for dormancy analysis engine
+  - [x] Test dormancy score calculation
+  - [x] Test prioritization algorithms
+  - [x] Test edge cases (missing data, zero values)
+- [x] Build dormancy analysis engine (make tests pass)
+- [x] Calculate dormancy score per contact
+- [x] Prioritize leads by:
   - Deal value
   - Lead score
   - Recency of last engagement
   - Company size/tier
-- [ ] Generate dormancy report per scan
+- [x] Generate dormancy report per scan
 
 ### 2.5 Dashboard - Dormant Leads View
-- [ ] API endpoint: list dormant contacts
-- [ ] Filter by dormancy rule
-- [ ] Sort by priority/score
-- [ ] Contact detail view with history
-- [ ] Bulk selection for campaigns
-- [ ] Export to CSV option
+- [x] API endpoint: list dormant contacts
+- [x] Filter by dormancy rule
+- [x] Sort by priority/score
+- [x] Contact detail view with history
+- [x] Bulk selection for campaigns
+- [x] Export to CSV option
 
 ---
 
@@ -102,17 +102,22 @@ Build the system to identify dormant leads based on configurable criteria and su
 ---
 
 ## Acceptance Criteria
-- [ ] Can create/edit/delete dormancy rules
-- [ ] Scanner runs on schedule and finds dormant contacts
-- [ ] Contacts correctly matched against rule criteria
-- [ ] Dormant leads visible in dashboard
-- [ ] Prioritization/scoring working
-- [ ] Scan logs available for debugging
+- [x] Can create/edit/delete dormancy rules
+- [x] Scanner runs on schedule and finds dormant contacts
+- [x] Contacts correctly matched against rule criteria
+- [x] Dormant leads visible in dashboard
+- [x] Prioritization/scoring working
+- [x] Scan logs available for debugging
 
 ## Testing Requirements (TDD)
-- [ ] Unit tests for dormancy rules service (>80% coverage)
-- [ ] Unit tests for scanner service (>80% coverage)
-- [ ] Unit tests for dormancy detection/scoring (>80% coverage)
-- [ ] Integration tests for rules API endpoints
-- [ ] Mock HubSpot search responses for testing
-- [ ] All tests passing before milestone complete
+- [x] Unit tests for dormancy rules service (>80% coverage) - 21 tests
+- [x] Unit tests for query builder service (>80% coverage) - 19 tests
+- [x] Unit tests for scanner service (>80% coverage) - 12 tests
+- [x] Unit tests for dormancy scan processor (>80% coverage) - 15 tests
+- [x] Unit tests for dormancy scan scheduler (>80% coverage) - 11 tests
+- [x] Unit tests for dormancy detection/scoring (>80% coverage) - 30 tests
+- [x] Unit tests for campaign service (>80% coverage) - 21 tests
+- [x] Unit tests for dormant leads controller (>80% coverage) - 19 tests
+- [x] Integration tests for rules API endpoints - 18 tests (test/rules.e2e-spec.ts)
+- [x] Mock HubSpot search responses for testing
+- [x] All tests passing before milestone complete (305 unit + 18 integration = 323 total tests)

@@ -21,7 +21,7 @@
     "paths": {
       "@/*": ["src/*"],
       "@config/*": ["src/config/*"],
-      "@hubspot/*": ["src/hubspot/*"],
+      "@hs/*": ["src/hubspot/*"],
       "@campaigns/*": ["src/campaigns/*"],
       "@ai/*": ["src/ai/*"],
       "@outreach/*": ["src/outreach/*"],

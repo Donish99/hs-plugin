@@ -9,7 +9,6 @@
   "moduleNameMapper": {
     "^@/(.*)$": "<rootDir>/../src/$1",
     "^@config/(.*)$": "<rootDir>/../src/config/$1",
-    "^@hubspot/(.*)$": "<rootDir>/../src/hubspot/$1",
     "^@campaigns/(.*)$": "<rootDir>/../src/campaigns/$1",
     "^@ai/(.*)$": "<rootDir>/../src/ai/$1",
     "^@outreach/(.*)$": "<rootDir>/../src/outreach/$1",
