@@ -92,4 +92,37 @@ describe('OutreachRecord Entity', () => {
       expect(record.isEmail()).toBe(false);
     });
   });
+
+  describe('variant tracking', () => {
+    it('should track variant ID', () => {
+      const record = new OutreachRecord();
+      record.variantId = 'variant-uuid-123';
+      record.variantGroupId = 'group-uuid-456';
+      record.selectedVariantIndex = 2;
+
+      expect(record.variantId).toBe('variant-uuid-123');
+      expect(record.variantGroupId).toBe('group-uuid-456');
+      expect(record.selectedVariantIndex).toBe(2);
+    });
+
+    it('should detect variant tracking when variantId is set', () => {
+      const record = new OutreachRecord();
+      record.variantId = 'variant-uuid-123';
+
+      expect(record.hasVariantTracking()).toBe(true);
+    });
+
+    it('should detect variant tracking when variantGroupId is set', () => {
+      const record = new OutreachRecord();
+      record.variantGroupId = 'group-uuid-456';
+
+      expect(record.hasVariantTracking()).toBe(true);
+    });
+
+    it('should return false for hasVariantTracking when no variant info', () => {
+      const record = new OutreachRecord();
+
+      expect(record.hasVariantTracking()).toBe(false);
+    });
+  });
 });

@@ -103,13 +103,7 @@ export class DormantLeadsController {
     @Query('portalId') portalId: number,
     @Query() query: ListDormantLeadsQuery,
   ): Promise<PaginatedResponse<PrioritizedContact>> {
-    const {
-      ruleId,
-      sortBy = 'dormancyScore',
-      sortOrder = 'desc',
-      page = 1,
-      limit = 20,
-    } = query;
+    const { ruleId, sortBy = 'dormancyScore', sortOrder = 'desc', page = 1, limit = 20 } = query;
 
     // Get scan results
     let scanResults: ScanResult[];
@@ -281,10 +275,10 @@ export class DormantLeadsController {
     }
 
     const allContacts = scanResults.flatMap((r) => r.contacts);
-    const prioritizedContacts = this.dormancyDetectionService.prioritizeContacts(
-      allContacts,
-      { sortBy, sortOrder },
-    );
+    const prioritizedContacts = this.dormancyDetectionService.prioritizeContacts(allContacts, {
+      sortBy,
+      sortOrder,
+    });
 
     // Generate CSV
     const csvHeaders = [
@@ -311,7 +305,9 @@ export class DormantLeadsController {
         p.dealValue.toString(),
         engagement.daysSinceLastContact?.toString() || 'N/A',
         p.priorityScore.toString(),
-      ].map((field) => `"${field.replace(/"/g, '""')}"`).join(',');
+      ]
+        .map((field) => `"${field.replace(/"/g, '""')}"`)
+        .join(',');
     });
 
     const csv = [csvHeaders.join(','), ...csvRows].join('\n');
@@ -332,13 +328,7 @@ export class DormantLeadsController {
     @Query('portalId') portalId: number,
     @Body() dto: BulkSelectDto,
   ): Promise<BulkSelectResponse> {
-    const {
-      minDormancyScore = 0,
-      minLeadScore = 0,
-      minDealValue = 0,
-      maxContacts,
-      ruleId,
-    } = dto;
+    const { minDormancyScore = 0, minLeadScore = 0, minDealValue = 0, maxContacts, ruleId } = dto;
 
     // Get scan results
     let scanResults: ScanResult[];
@@ -351,10 +341,10 @@ export class DormantLeadsController {
     }
 
     const allContacts = scanResults.flatMap((r) => r.contacts);
-    const prioritizedContacts = this.dormancyDetectionService.prioritizeContacts(
-      allContacts,
-      { sortBy: 'composite', sortOrder: 'desc' },
-    );
+    const prioritizedContacts = this.dormancyDetectionService.prioritizeContacts(allContacts, {
+      sortBy: 'composite',
+      sortOrder: 'desc',
+    });
 
     // Apply filters
     let filteredContacts = prioritizedContacts.filter(

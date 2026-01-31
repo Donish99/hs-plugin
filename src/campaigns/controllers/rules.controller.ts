@@ -1,14 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  Logger,
-} from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Logger } from '@nestjs/common';
 import {
   DormancyRulesService,
   CreateDormancyRuleDto,

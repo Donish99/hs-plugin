@@ -42,10 +42,7 @@ export enum ResponseIntent {
 /**
  * Intents that should stop outreach
  */
-const STOP_OUTREACH_INTENTS = [
-  ResponseIntent.NOT_INTERESTED,
-  ResponseIntent.UNSUBSCRIBE,
-];
+const STOP_OUTREACH_INTENTS = [ResponseIntent.NOT_INTERESTED, ResponseIntent.UNSUBSCRIBE];
 
 /**
  * Response entity - tracks responses to outreach attempts

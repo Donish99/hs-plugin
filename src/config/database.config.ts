@@ -29,10 +29,7 @@ export const getDatabaseConfig = (configService?: ConfigService): DataSourceOpti
     migrationsTableName: 'migrations',
     synchronize: false, // Never use in production
     logging: process.env.NODE_ENV === 'development',
-    ssl:
-      process.env.NODE_ENV === 'production'
-        ? { rejectUnauthorized: false }
-        : false,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     extra: {
       // Connection pool settings
       max: 20,

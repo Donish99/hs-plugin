@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  NestMiddleware,
-  UnauthorizedException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NestMiddleware, UnauthorizedException, Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { OAuthService } from '../services/oauth.service';
 
@@ -46,8 +41,7 @@ export class TokenValidationMiddleware implements NestMiddleware {
 
       // Check if token is expiring soon and refresh if needed
       const tokenExpiresAt = new Date(account.tokenExpiresAt);
-      const isExpiringSoon =
-        Date.now() >= tokenExpiresAt.getTime() - TOKEN_EXPIRY_BUFFER_MS;
+      const isExpiringSoon = Date.now() >= tokenExpiresAt.getTime() - TOKEN_EXPIRY_BUFFER_MS;
 
       let accessToken = account.accessToken;
 

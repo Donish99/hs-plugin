@@ -98,11 +98,7 @@ describe('RulesController', () => {
 
       const result = await controller.update(mockAccountId, mockRule.id, updateDto);
 
-      expect(mockService.update).toHaveBeenCalledWith(
-        mockAccountId,
-        mockRule.id,
-        updateDto,
-      );
+      expect(mockService.update).toHaveBeenCalledWith(mockAccountId, mockRule.id, updateDto);
       expect(result.name).toBe('Updated Rule');
     });
   });
@@ -123,10 +119,7 @@ describe('RulesController', () => {
 
       const result = await controller.toggleActive(mockAccountId, mockRule.id);
 
-      expect(mockService.toggleActive).toHaveBeenCalledWith(
-        mockAccountId,
-        mockRule.id,
-      );
+      expect(mockService.toggleActive).toHaveBeenCalledWith(mockAccountId, mockRule.id);
       expect(result.isActive).toBe(false);
     });
   });

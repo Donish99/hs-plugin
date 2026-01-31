@@ -12,13 +12,7 @@ import { Response } from '../entities/response.entity';
 /**
  * All entity classes for registration
  */
-export const entities = [
-  HubspotAccount,
-  DormancyRule,
-  Campaign,
-  OutreachRecord,
-  Response,
-];
+export const entities = [HubspotAccount, DormancyRule, Campaign, OutreachRecord, Response];
 
 /**
  * Database module - configures TypeORM connection

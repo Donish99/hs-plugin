@@ -36,9 +36,7 @@ export class OAuthService {
     private readonly accountRepository: Repository<HubspotAccount>,
   ) {
     this.clientId = this.configService.getOrThrow<string>('HUBSPOT_CLIENT_ID');
-    this.clientSecret = this.configService.getOrThrow<string>(
-      'HUBSPOT_CLIENT_SECRET',
-    );
+    this.clientSecret = this.configService.getOrThrow<string>('HUBSPOT_CLIENT_SECRET');
     const appUrl = this.configService.getOrThrow<string>('APP_URL');
     this.redirectUri = `${appUrl}/api/hubspot/oauth/callback`;
 
@@ -115,11 +113,7 @@ export class OAuthService {
       const iv = Buffer.from(ivHex, 'hex');
       const authTag = Buffer.from(authTagHex, 'hex');
 
-      const decipher = crypto.createDecipheriv(
-        this.algorithm,
-        this.encryptionKey,
-        iv,
-      );
+      const decipher = crypto.createDecipheriv(this.algorithm, this.encryptionKey, iv);
       decipher.setAuthTag(authTag);
 
       let decrypted = decipher.update(encrypted, 'hex', 'utf8');
@@ -273,5 +267,27 @@ export class OAuthService {
       this.logger.error('Failed to refresh tokens', error);
       throw error;
     }
+  }
+
+  /**
+   * Get access token for a portal (alias for getValidAccessToken)
+   */
+  async getAccessToken(portalId: number): Promise<string | null> {
+    try {
+      return await this.getValidAccessToken(portalId);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get the HubSpot plan for an account
+   */
+  async getAccountPlan(portalId: number): Promise<string | null> {
+    const account = await this.accountRepository.findOne({
+      where: { portalId },
+    });
+
+    return account?.plan || null;
   }
 }

@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -41,10 +36,7 @@ export class DormancyRulesService {
   /**
    * Create a new dormancy rule
    */
-  async create(
-    accountId: string,
-    dto: CreateDormancyRuleDto,
-  ): Promise<DormancyRule> {
+  async create(accountId: string, dto: CreateDormancyRuleDto): Promise<DormancyRule> {
     this.validateCriteria(dto.criteria);
 
     const rule = this.ruleRepository.create({
@@ -146,9 +138,7 @@ export class DormancyRulesService {
     rule.isActive = !rule.isActive;
 
     const saved = await this.ruleRepository.save(rule);
-    this.logger.log(
-      `Toggled dormancy rule ${ruleId} to ${saved.isActive ? 'active' : 'inactive'}`,
-    );
+    this.logger.log(`Toggled dormancy rule ${ruleId} to ${saved.isActive ? 'active' : 'inactive'}`);
 
     return saved;
   }
@@ -176,37 +166,23 @@ export class DormancyRulesService {
       criteria.min_lead_score !== undefined;
 
     if (!hasCondition) {
-      throw new BadRequestException(
-        'Dormancy criteria must have at least one condition',
-      );
+      throw new BadRequestException('Dormancy criteria must have at least one condition');
     }
 
     // Validate numeric values are positive
-    if (
-      criteria.min_days_inactive !== undefined &&
-      criteria.min_days_inactive <= 0
-    ) {
+    if (criteria.min_days_inactive !== undefined && criteria.min_days_inactive <= 0) {
       throw new BadRequestException('min_days_inactive must be positive');
     }
 
-    if (
-      criteria.no_email_opens_days !== undefined &&
-      criteria.no_email_opens_days <= 0
-    ) {
+    if (criteria.no_email_opens_days !== undefined && criteria.no_email_opens_days <= 0) {
       throw new BadRequestException('no_email_opens_days must be positive');
     }
 
-    if (
-      criteria.no_email_clicks_days !== undefined &&
-      criteria.no_email_clicks_days <= 0
-    ) {
+    if (criteria.no_email_clicks_days !== undefined && criteria.no_email_clicks_days <= 0) {
       throw new BadRequestException('no_email_clicks_days must be positive');
     }
 
-    if (
-      criteria.no_website_visits_days !== undefined &&
-      criteria.no_website_visits_days <= 0
-    ) {
+    if (criteria.no_website_visits_days !== undefined && criteria.no_website_visits_days <= 0) {
       throw new BadRequestException('no_website_visits_days must be positive');
     }
 

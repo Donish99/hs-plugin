@@ -78,9 +78,7 @@ export class CampaignService {
   /**
    * Create a campaign from scan results
    */
-  async createCampaignFromScan(
-    dto: CreateCampaignFromScanDto,
-  ): Promise<CampaignCreationResult> {
+  async createCampaignFromScan(dto: CreateCampaignFromScanDto): Promise<CampaignCreationResult> {
     const { accountId, scanResult, name, channel = OutreachChannel.EMAIL } = dto;
 
     // Handle empty scan results
@@ -105,8 +103,7 @@ export class CampaignService {
     }
 
     // Generate campaign name if not provided
-    const campaignName =
-      name || `Dormancy Campaign - ${new Date().toISOString().split('T')[0]}`;
+    const campaignName = name || `Dormancy Campaign - ${new Date().toISOString().split('T')[0]}`;
 
     // Create campaign entity
     const campaign = this.campaignRepository.create({
@@ -121,12 +118,7 @@ export class CampaignService {
 
     // Create outreach records for each contact
     const outreachRecords = validContacts.map((contact) =>
-      this.createOutreachRecordFromContact(
-        savedCampaign.id,
-        accountId,
-        contact,
-        channel,
-      ),
+      this.createOutreachRecordFromContact(savedCampaign.id, accountId, contact, channel),
     );
 
     await this.outreachRepository.save(outreachRecords);
@@ -271,6 +263,54 @@ export class CampaignService {
   }
 
   /**
+   * Pause a campaign
+   */
+  async pauseCampaign(campaignId: string): Promise<Campaign | null> {
+    const campaign = await this.campaignRepository.findOne({
+      where: { id: campaignId },
+    });
+
+    if (!campaign) {
+      return null;
+    }
+
+    if (campaign.status === CampaignStatus.PAUSED) {
+      return campaign;
+    }
+
+    if (!campaign.canTransitionTo(CampaignStatus.PAUSED)) {
+      throw new BadRequestException(
+        `Cannot pause campaign with status ${campaign.status}`,
+      );
+    }
+
+    campaign.status = CampaignStatus.PAUSED;
+    return this.campaignRepository.save(campaign);
+  }
+
+  /**
+   * Stop a campaign
+   */
+  async stopCampaign(campaignId: string): Promise<Campaign | null> {
+    const campaign = await this.campaignRepository.findOne({
+      where: { id: campaignId },
+    });
+
+    if (!campaign) {
+      return null;
+    }
+
+    if (campaign.status === CampaignStatus.COMPLETED) {
+      return campaign;
+    }
+
+    // Force transition to completed (stopped)
+    campaign.status = CampaignStatus.COMPLETED;
+    campaign.completedAt = new Date();
+    return this.campaignRepository.save(campaign);
+  }
+
+  /**
    * Remove contacts that already have active outreach
    */
   async deduplicateContacts(
@@ -292,9 +332,7 @@ export class CampaignService {
       },
     });
 
-    const existingContactIds = new Set(
-      existingOutreach.map((o) => o.hubspotContactId),
-    );
+    const existingContactIds = new Set(existingOutreach.map((o) => o.hubspotContactId));
 
     // Filter out contacts with active outreach
     return contacts.filter((c) => !existingContactIds.has(parseInt(c.id, 10)));
@@ -308,15 +346,11 @@ export class CampaignService {
     channel: OutreachChannel,
   ): HubSpotContact[] {
     if (channel === OutreachChannel.EMAIL) {
-      return contacts.filter(
-        (c) => c.properties.email && c.properties.email.trim() !== '',
-      );
+      return contacts.filter((c) => c.properties.email && c.properties.email.trim() !== '');
     }
 
     if (channel === OutreachChannel.SMS) {
-      return contacts.filter(
-        (c) => c.properties.phone && c.properties.phone.trim() !== '',
-      );
+      return contacts.filter((c) => c.properties.phone && c.properties.phone.trim() !== '');
     }
 
     return contacts;

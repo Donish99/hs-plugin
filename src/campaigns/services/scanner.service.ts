@@ -76,10 +76,7 @@ export class ScannerService {
     });
 
     try {
-      const searchResponse = await this.contactsService.searchWithRequest(
-        portalId,
-        searchRequest,
-      );
+      const searchResponse = await this.contactsService.searchWithRequest(portalId, searchRequest);
 
       const result: ScanResult = {
         ruleId,
@@ -91,9 +88,7 @@ export class ScannerService {
       // Cache the result
       this.setInCache(cacheKey, result);
 
-      this.logger.log(
-        `Found ${result.totalFound} contacts matching rule ${rule.name}`,
-      );
+      this.logger.log(`Found ${result.totalFound} contacts matching rule ${rule.name}`);
 
       return result;
     } catch (error) {
@@ -118,20 +113,13 @@ export class ScannerService {
       return [];
     }
 
-    this.logger.log(
-      `Scanning ${activeRules.length} active rules for account ${accountId}`,
-    );
+    this.logger.log(`Scanning ${activeRules.length} active rules for account ${accountId}`);
 
     const results: ScanResult[] = [];
 
     for (const rule of activeRules) {
       try {
-        const result = await this.scanForRule(
-          accountId,
-          portalId,
-          rule.id,
-          options,
-        );
+        const result = await this.scanForRule(accountId, portalId, rule.id, options);
         results.push(result);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';

@@ -1,10 +1,4 @@
-import {
-  Processor,
-  Process,
-  OnQueueCompleted,
-  OnQueueFailed,
-  InjectQueue,
-} from '@nestjs/bull';
+import { Processor, Process, OnQueueCompleted, OnQueueFailed, InjectQueue } from '@nestjs/bull';
 import { Injectable, Logger } from '@nestjs/common';
 import { Job, Queue } from 'bull';
 import { QUEUE_NAMES } from '../config/redis.config';
@@ -77,11 +71,8 @@ export class ContactSyncProcessor extends BaseProcessor<ContactSyncJobData> {
         },
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(
-        `Contact sync failed for portal ${portalId}: ${errorMessage}`,
-      );
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Contact sync failed for portal ${portalId}: ${errorMessage}`);
 
       return {
         status: JobStatus.FAILED,

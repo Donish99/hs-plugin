@@ -115,18 +115,9 @@ export class DormancyDetectionService {
     const now = new Date();
     const properties = contact.properties;
 
-    const daysSinceLastContact = this.calculateDaysSince(
-      properties.notes_last_contacted,
-      now,
-    );
-    const daysSinceLastOpen = this.calculateDaysSince(
-      properties.hs_email_last_open_date,
-      now,
-    );
-    const daysSinceLastClick = this.calculateDaysSince(
-      properties.hs_email_last_click_date,
-      now,
-    );
+    const daysSinceLastContact = this.calculateDaysSince(properties.notes_last_contacted, now);
+    const daysSinceLastOpen = this.calculateDaysSince(properties.hs_email_last_open_date, now);
+    const daysSinceLastClick = this.calculateDaysSince(properties.hs_email_last_click_date, now);
     const daysSinceLastVisit = this.calculateDaysSince(
       properties.hs_analytics_last_visit_timestamp,
       now,
@@ -219,10 +210,7 @@ export class DormancyDetectionService {
   /**
    * Generate a dormancy report for a scan
    */
-  generateDormancyReport(
-    ruleId: string,
-    contacts: HubSpotContact[],
-  ): DormancyReport {
+  generateDormancyReport(ruleId: string, contacts: HubSpotContact[]): DormancyReport {
     if (contacts.length === 0) {
       return {
         ruleId,
@@ -246,10 +234,7 @@ export class DormancyDetectionService {
       (sum, p) => sum + p.dormancyScore.totalScore,
       0,
     );
-    const totalDealValue = prioritizedContacts.reduce(
-      (sum, p) => sum + p.dealValue,
-      0,
-    );
+    const totalDealValue = prioritizedContacts.reduce((sum, p) => sum + p.dealValue, 0);
 
     // Calculate distributions
     const dormancyDistribution = this.calculateDistribution(
@@ -264,8 +249,7 @@ export class DormancyDetectionService {
     return {
       ruleId,
       totalContacts: contacts.length,
-      averageDormancyScore:
-        Math.round((totalDormancyScore / contacts.length) * 100) / 100,
+      averageDormancyScore: Math.round((totalDormancyScore / contacts.length) * 100) / 100,
       totalDealValue,
       dormancyDistribution,
       leadScoreDistribution,
@@ -293,14 +277,8 @@ export class DormancyDetectionService {
       daysSinceLastContact: this.calculateDaysSince(props.notes_last_contacted, now),
       daysSinceLastOpen: this.calculateDaysSince(props.hs_email_last_open_date, now),
       daysSinceLastClick: this.calculateDaysSince(props.hs_email_last_click_date, now),
-      daysSinceLastVisit: this.calculateDaysSince(
-        props.hs_analytics_last_visit_timestamp,
-        now,
-      ),
-      daysSinceLastReply: this.calculateDaysSince(
-        props.hs_sales_email_last_replied,
-        now,
-      ),
+      daysSinceLastVisit: this.calculateDaysSince(props.hs_analytics_last_visit_timestamp, now),
+      daysSinceLastReply: this.calculateDaysSince(props.hs_sales_email_last_replied, now),
       totalContactAttempts: this.parseNumericProperty(props.num_contacted_notes),
       leadScore: this.parseNumericProperty(props.hubspotscore),
       dealValue: this.parseNumericProperty(props.hs_deal_amount),
@@ -429,9 +407,7 @@ export class DormancyDetectionService {
     const normalizedDealValue = Math.min(factors.dealValue / 1000000, 1) * 100;
 
     const score =
-      factors.dormancyScore * 0.4 +
-      factors.leadScore * 0.35 +
-      normalizedDealValue * 0.25;
+      factors.dormancyScore * 0.4 + factors.leadScore * 0.35 + normalizedDealValue * 0.25;
 
     return Math.round(score * 100) / 100;
   }
@@ -439,10 +415,7 @@ export class DormancyDetectionService {
   /**
    * Sort contacts based on prioritization options
    */
-  private sortContacts(
-    contacts: PrioritizedContact[],
-    options: PrioritizationOptions,
-  ): void {
+  private sortContacts(contacts: PrioritizedContact[], options: PrioritizationOptions): void {
     const multiplier = options.sortOrder === 'desc' ? -1 : 1;
 
     contacts.sort((a, b) => {
@@ -518,8 +491,7 @@ export class DormancyDetectionService {
   ): LevelDistribution {
     return {
       high: values.filter((v) => v >= thresholds.high).length,
-      medium: values.filter((v) => v >= thresholds.medium && v < thresholds.high)
-        .length,
+      medium: values.filter((v) => v >= thresholds.medium && v < thresholds.high).length,
       low: values.filter((v) => v < thresholds.medium).length,
     };
   }

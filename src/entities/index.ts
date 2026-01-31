@@ -7,3 +7,5 @@ export * from './dormancy-rule.entity';
 export * from './campaign.entity';
 export * from './outreach-record.entity';
 export * from './response.entity';
+export * from './message-variant.entity';
+export * from './review-queue.entity';

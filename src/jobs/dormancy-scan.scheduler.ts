@@ -83,10 +83,7 @@ export class DormancyScanScheduler {
   /**
    * Manually trigger a scan for a specific account
    */
-  async triggerScanForAccount(
-    accountId: string,
-    options: TriggerScanOptions = {},
-  ): Promise<void> {
+  async triggerScanForAccount(accountId: string, options: TriggerScanOptions = {}): Promise<void> {
     const account = await this.accountRepository.findOne({
       where: { id: accountId },
     });

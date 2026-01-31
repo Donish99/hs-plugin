@@ -584,6 +584,113 @@ describe('CampaignService', () => {
     });
   });
 
+  describe('pauseCampaign', () => {
+    it('should pause a running campaign', async () => {
+      const mockCampaign = {
+        id: 'campaign-1',
+        status: CampaignStatus.RUNNING,
+        canTransitionTo: jest.fn().mockReturnValue(true),
+      };
+
+      mockCampaignRepository.findOne.mockResolvedValue(mockCampaign as unknown as Campaign);
+      mockCampaignRepository.save.mockImplementation((c) => Promise.resolve(c as Campaign));
+
+      const result = await service.pauseCampaign('campaign-1');
+
+      expect(result?.status).toBe(CampaignStatus.PAUSED);
+      expect(mockCampaignRepository.save).toHaveBeenCalled();
+    });
+
+    it('should return null if campaign not found', async () => {
+      mockCampaignRepository.findOne.mockResolvedValue(null);
+
+      const result = await service.pauseCampaign('nonexistent');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return campaign if already paused', async () => {
+      const mockCampaign = {
+        id: 'campaign-1',
+        status: CampaignStatus.PAUSED,
+      };
+
+      mockCampaignRepository.findOne.mockResolvedValue(mockCampaign as unknown as Campaign);
+
+      const result = await service.pauseCampaign('campaign-1');
+
+      expect(result?.status).toBe(CampaignStatus.PAUSED);
+      expect(mockCampaignRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should throw error if campaign cannot be paused', async () => {
+      const mockCampaign = {
+        id: 'campaign-1',
+        status: CampaignStatus.COMPLETED,
+        canTransitionTo: jest.fn().mockReturnValue(false),
+      };
+
+      mockCampaignRepository.findOne.mockResolvedValue(mockCampaign as unknown as Campaign);
+
+      await expect(service.pauseCampaign('campaign-1')).rejects.toThrow(
+        'Cannot pause campaign with status completed',
+      );
+    });
+  });
+
+  describe('stopCampaign', () => {
+    it('should stop a running campaign', async () => {
+      const mockCampaign = {
+        id: 'campaign-1',
+        status: CampaignStatus.RUNNING,
+      };
+
+      mockCampaignRepository.findOne.mockResolvedValue(mockCampaign as unknown as Campaign);
+      mockCampaignRepository.save.mockImplementation((c) => Promise.resolve(c as Campaign));
+
+      const result = await service.stopCampaign('campaign-1');
+
+      expect(result?.status).toBe(CampaignStatus.COMPLETED);
+      expect(result?.completedAt).toBeInstanceOf(Date);
+    });
+
+    it('should return null if campaign not found', async () => {
+      mockCampaignRepository.findOne.mockResolvedValue(null);
+
+      const result = await service.stopCampaign('nonexistent');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return campaign if already completed', async () => {
+      const mockCampaign = {
+        id: 'campaign-1',
+        status: CampaignStatus.COMPLETED,
+      };
+
+      mockCampaignRepository.findOne.mockResolvedValue(mockCampaign as unknown as Campaign);
+
+      const result = await service.stopCampaign('campaign-1');
+
+      expect(result?.status).toBe(CampaignStatus.COMPLETED);
+      expect(mockCampaignRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should stop a paused campaign', async () => {
+      const mockCampaign = {
+        id: 'campaign-1',
+        status: CampaignStatus.PAUSED,
+      };
+
+      mockCampaignRepository.findOne.mockResolvedValue(mockCampaign as unknown as Campaign);
+      mockCampaignRepository.save.mockImplementation((c) => Promise.resolve(c as Campaign));
+
+      const result = await service.stopCampaign('campaign-1');
+
+      expect(result?.status).toBe(CampaignStatus.COMPLETED);
+    });
+  });
+
   describe('deduplicateContacts', () => {
     it('should remove contacts that already have pending outreach', async () => {
       const contacts: HubSpotContact[] = [

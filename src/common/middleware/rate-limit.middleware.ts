@@ -57,18 +57,11 @@ export class RateLimitService {
   /**
    * Check if a request is allowed under the rate limit
    */
-  async checkRateLimit(
-    identifier: string,
-    config: RateLimitConfig,
-  ): Promise<RateLimitResult> {
+  async checkRateLimit(identifier: string, config: RateLimitConfig): Promise<RateLimitResult> {
     const key = this.getKey(identifier, config.keyPrefix);
 
     // Increment counter and set expiry atomically
-    const results = await this.redis
-      .multi()
-      .incr(key)
-      .pexpire(key, config.windowMs)
-      .exec();
+    const results = await this.redis.multi().incr(key).pexpire(key, config.windowMs).exec();
 
     if (!results) {
       // Redis error - allow request but log warning
@@ -97,10 +90,7 @@ export class RateLimitService {
   /**
    * Get remaining requests for an identifier
    */
-  async getRemainingRequests(
-    identifier: string,
-    config: RateLimitConfig,
-  ): Promise<number> {
+  async getRemainingRequests(identifier: string, config: RateLimitConfig): Promise<number> {
     const key = this.getKey(identifier, config.keyPrefix);
     const count = await this.redis.get(key);
 

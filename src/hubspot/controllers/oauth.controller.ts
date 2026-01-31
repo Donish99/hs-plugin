@@ -87,9 +87,7 @@ export class OAuthController {
       };
     } catch (error) {
       this.logger.error(`OAuth callback failed for portal ${portalIdNum}`, error);
-      throw new UnauthorizedException(
-        'Failed to authenticate with HubSpot. Please try again.',
-      );
+      throw new UnauthorizedException('Failed to authenticate with HubSpot. Please try again.');
     }
   }
 
@@ -111,9 +109,7 @@ export class OAuthController {
    * Check connection status for a portal
    */
   @Get('status')
-  async getStatus(
-    @Query('portal_id') portalId: number,
-  ): Promise<{
+  async getStatus(@Query('portal_id') portalId: number): Promise<{
     connected: boolean;
     portalId?: number;
     tokenExpired?: boolean;
@@ -139,7 +135,8 @@ export class OAuthController {
    * Generate a random state string for CSRF protection
    */
   private generateState(): string {
-    return Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15);
+    return (
+      Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+    );
   }
 }

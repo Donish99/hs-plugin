@@ -93,21 +93,12 @@ export class DormancyScanProcessor extends BaseProcessor<DormancyScanJobData> {
 
       if (ruleId) {
         // Scan for a specific rule
-        const result = await this.scannerService.scanForRule(
-          accountId,
-          portalId,
-          ruleId,
-          options,
-        );
+        const result = await this.scannerService.scanForRule(accountId, portalId, ruleId, options);
         scanResults = [result];
         totalFound = result.totalFound;
       } else {
         // Scan all active rules
-        scanResults = await this.scannerService.scanAllRules(
-          accountId,
-          portalId,
-          options,
-        );
+        scanResults = await this.scannerService.scanAllRules(accountId, portalId, options);
         totalFound = scanResults.reduce((sum, r) => sum + r.totalFound, 0);
       }
 
@@ -121,10 +112,7 @@ export class DormancyScanProcessor extends BaseProcessor<DormancyScanJobData> {
         );
 
         const campaignsCreated = campaignResults.filter((r) => r.campaign !== null).length;
-        const totalOutreach = campaignResults.reduce(
-          (sum, r) => sum + r.outreachRecordsCreated,
-          0,
-        );
+        const totalOutreach = campaignResults.reduce((sum, r) => sum + r.outreachRecordsCreated, 0);
 
         this.logger.log(
           `Created ${campaignsCreated} campaigns with ${totalOutreach} outreach records`,
@@ -176,11 +164,9 @@ export class DormancyScanProcessor extends BaseProcessor<DormancyScanJobData> {
       result.accountsProcessed++;
 
       try {
-        const scanResults = await this.scannerService.scanAllRules(
-          account.id,
-          account.portalId,
-          { forceRefresh: true },
-        );
+        const scanResults = await this.scannerService.scanAllRules(account.id, account.portalId, {
+          forceRefresh: true,
+        });
 
         result.results.push(...scanResults);
         const contactsFound = scanResults.reduce((sum, r) => sum + r.totalFound, 0);
@@ -194,9 +180,7 @@ export class DormancyScanProcessor extends BaseProcessor<DormancyScanJobData> {
           );
 
           const campaignsCreated = campaignResults.filter((r) => r.campaign !== null).length;
-          this.logger.log(
-            `Created ${campaignsCreated} campaigns for account ${account.id}`,
-          );
+          this.logger.log(`Created ${campaignsCreated} campaigns for account ${account.id}`);
         }
 
         this.logger.log(

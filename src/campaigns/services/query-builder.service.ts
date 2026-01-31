@@ -157,10 +157,7 @@ export class QueryBuilderService {
   ): HubspotSearchRequest {
     const filterGroups = this.buildFiltersFromCriteria(criteria);
 
-    const properties = [
-      ...DEFAULT_PROPERTIES,
-      ...(options.additionalProperties || []),
-    ];
+    const properties = [...DEFAULT_PROPERTIES, ...(options.additionalProperties || [])];
 
     // Remove duplicates
     const uniqueProperties = [...new Set(properties)];
@@ -205,11 +202,7 @@ export class QueryBuilderService {
    */
   getCacheKey(accountId: string, criteria: DormancyCriteria): string {
     const criteriaStr = JSON.stringify(criteria, Object.keys(criteria).sort());
-    const hash = crypto
-      .createHash('md5')
-      .update(criteriaStr)
-      .digest('hex')
-      .substring(0, 12);
+    const hash = crypto.createHash('md5').update(criteriaStr).digest('hex').substring(0, 12);
 
     return `dormancy:${accountId}:${hash}`;
   }

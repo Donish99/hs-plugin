@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { HubspotAccount } from './hubspot-account.entity';
 import { Campaign } from './campaign.entity';
+import { MessageVariant } from './message-variant.entity';
 
 /**
  * Outreach status enum
@@ -110,12 +111,30 @@ export class OutreachRecord {
   @Column({ type: 'int', nullable: true, name: 'ai_completion_tokens' })
   aiCompletionTokens?: number;
 
+  @Column({ type: 'uuid', nullable: true, name: 'variant_id' })
+  @Index()
+  variantId?: string;
+
+  @ManyToOne(() => MessageVariant, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'variant_id' })
+  variant?: MessageVariant;
+
+  @Column({ type: 'uuid', nullable: true, name: 'variant_group_id' })
+  @Index()
+  variantGroupId?: string;
+
+  @Column({ type: 'int', nullable: true, name: 'selected_variant_index' })
+  selectedVariantIndex?: number;
+
   @Column({
     type: 'varchar',
     length: 50,
     default: OutreachStatus.PENDING,
   })
   status: OutreachStatus = OutreachStatus.PENDING;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'scheduled_at' })
+  scheduledAt?: Date;
 
   @Column({ type: 'timestamp', nullable: true, name: 'sent_at' })
   sentAt?: Date;
@@ -177,5 +196,12 @@ export class OutreachRecord {
    */
   getTotalTokens(): number {
     return (this.aiPromptTokens || 0) + (this.aiCompletionTokens || 0);
+  }
+
+  /**
+   * Check if this outreach has variant tracking
+   */
+  hasVariantTracking(): boolean {
+    return !!this.variantId || !!this.variantGroupId;
   }
 }

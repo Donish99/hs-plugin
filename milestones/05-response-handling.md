@@ -8,58 +8,58 @@ Set up webhook processing to detect responses and automatically take appropriate
 ## Features
 
 ### 5.1 Webhook Subscription Setup
-- [ ] Configure webhooks in HubSpot app settings
-- [ ] Subscribe to relevant events:
+- [x] Configure webhooks in HubSpot app settings
+- [x] Subscribe to relevant events:
   - `contact.propertyChange` (email opens, replies)
   - `deal.propertyChange` (stage changes)
   - `contact.associationChange`
-- [ ] Set up webhook endpoint URL
-- [ ] Implement signature validation (HMAC)
+- [x] Set up webhook endpoint URL
+- [x] Implement signature validation (HMAC)
 
 ### 5.2 Webhook Handler Service
 **TDD Approach: Test webhook validation and processing thoroughly**
-- [ ] Write tests for webhook handler
-  - [ ] Test signature validation (valid/invalid)
-  - [ ] Test stale request rejection
-  - [ ] Test batch payload handling
-  - [ ] Test queueing behavior
-- [ ] Create webhook receiver endpoint (make tests pass)
-- [ ] Validate request signatures
-- [ ] Reject stale requests (>5 min old)
-- [ ] Queue events for async processing
-- [ ] Return 200 response within 1 second
-- [ ] Handle batch webhook payloads
+- [x] Write tests for webhook handler
+  - [x] Test signature validation (valid/invalid)
+  - [x] Test stale request rejection
+  - [x] Test batch payload handling
+  - [x] Test queueing behavior
+- [x] Create webhook receiver endpoint (make tests pass)
+- [x] Validate request signatures
+- [x] Reject stale requests (>5 min old)
+- [x] Queue events for async processing
+- [x] Return 200 response within 1 second
+- [x] Handle batch webhook payloads
 
 ### 5.3 Event Processing Pipeline
-- [ ] Process events from queue
-- [ ] Match events to outreach records
-- [ ] Update tracking status:
+- [x] Process events from queue
+- [x] Match events to outreach records
+- [x] Update tracking status:
   - Email opened → update `opened_at`
   - Email clicked → update `clicked_at`
   - Email replied → trigger classification
-- [ ] Handle deal stage changes
-- [ ] Log all events for debugging
+- [x] Handle deal stage changes
+- [x] Log all events for debugging
 
 ### 5.4 Response Classification (AI)
 **TDD Approach: Test classification logic with varied response examples**
-- [ ] Write tests for classifier service
-  - [ ] Test each classification category
-  - [ ] Test edge cases and ambiguous responses
-  - [ ] Test confidence score calculation
-  - [ ] Test error handling for failed classifications
-- [ ] Detect incoming replies
-- [ ] Fetch reply content from HubSpot
-- [ ] Classify response using OpenAI (make tests pass):
+- [x] Write tests for classifier service
+  - [x] Test each classification category
+  - [x] Test edge cases and ambiguous responses
+  - [x] Test confidence score calculation
+  - [x] Test error handling for failed classifications
+- [x] Detect incoming replies
+- [x] Fetch reply content from HubSpot
+- [x] Classify response using OpenAI (make tests pass):
   - **Interested**: Wants to continue conversation
   - **Not now**: Timing not right, follow up later
   - **Not interested**: Polite decline
   - **Unsubscribe**: Remove from outreach
   - **Out of office**: Reschedule
   - **Bounced**: Invalid contact
-- [ ] Store classification with confidence score
+- [x] Store classification with confidence score
 
 ### 5.5 Automated Actions
-- [ ] Based on classification, execute actions:
+- [x] Based on classification, execute actions:
 
 | Classification | Action |
 |----------------|--------|
@@ -70,16 +70,16 @@ Set up webhook processing to detect responses and automatically take appropriate
 | Out of office | Reschedule based on return date |
 | Bounced | Mark email invalid in HubSpot |
 
-- [ ] Create HubSpot tasks automatically
-- [ ] Update campaign status
-- [ ] Notify sales rep (optional)
+- [x] Create HubSpot tasks automatically
+- [x] Update campaign status
+- [x] Notify sales rep (optional)
 
 ### 5.6 Campaign Pause/Stop Logic
-- [ ] Auto-pause on positive response
-- [ ] Stop sequence on explicit opt-out
-- [ ] Prevent re-enrollment for X days
-- [ ] Global suppression list
-- [ ] Handle manual pause/resume
+- [x] Auto-pause on positive response
+- [x] Stop sequence on explicit opt-out
+- [x] Prevent re-enrollment for X days
+- [x] Global suppression list
+- [x] Handle manual pause/resume
 
 ---
 
@@ -124,31 +124,38 @@ Reply: {email_content}
 Respond with JSON: { "classification": "...", "confidence": 0.0-1.0, "reason": "..." }
 ```
 
-### Key Files to Create
+### Key Files Created
 - `src/hubspot/services/webhooks.service.ts`
 - `src/hubspot/controllers/webhooks.controller.ts`
 - `src/ai/services/classifier.service.ts`
 - `src/campaigns/services/actions.service.ts`
-- `src/jobs/webhook-processor.ts`
+- `src/jobs/webhook.processor.ts`
 - `src/jobs/classification.processor.ts`
 
 ---
 
 ## Acceptance Criteria
-- [ ] Webhooks received and validated
-- [ ] Events processed asynchronously
-- [ ] Email opens/clicks tracked in database
-- [ ] Replies classified accurately
-- [ ] Automated actions triggered correctly
-- [ ] Tasks created in HubSpot for sales
-- [ ] Campaigns pause/stop as expected
-- [ ] Suppression list respected
+- [x] Webhooks received and validated
+- [x] Events processed asynchronously
+- [x] Email opens/clicks tracked in database
+- [x] Replies classified accurately
+- [x] Automated actions triggered correctly
+- [x] Tasks created in HubSpot for sales
+- [x] Campaigns pause/stop as expected
+- [x] Suppression list respected
 
 ## Testing Requirements (TDD)
-- [ ] Unit tests for webhook handler (>80% coverage)
-- [ ] Unit tests for classifier service (>80% coverage)
-- [ ] Unit tests for actions service (>80% coverage)
-- [ ] Test fixtures for various webhook payloads
-- [ ] Test fixtures for response classification samples
-- [ ] E2E test for webhook → classification → action flow
-- [ ] All tests passing before milestone complete
+- [x] Unit tests for webhook handler (>80% coverage)
+- [x] Unit tests for classifier service (>80% coverage)
+- [x] Unit tests for actions service (>80% coverage)
+- [x] Test fixtures for various webhook payloads
+- [x] Test fixtures for response classification samples
+- [x] E2E test for webhook → classification → action flow
+- [x] All tests passing before milestone complete
+
+## Implementation Notes
+- Added `scheduledAt` column to outreach_records for follow-up scheduling
+- Added `pauseCampaign` and `stopCampaign` methods to CampaignService
+- ClassificationProcessor integrates with ClassifierService and ActionsService
+- WebhookProcessor handles email open/click/reply/bounce events
+- Migration created: `1706700000001-AddScheduledAtToOutreach.ts`
