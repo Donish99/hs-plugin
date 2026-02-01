@@ -1,0 +1,20 @@
+{
+  "name": "@hsdl/hubspot-extensions",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "hs project dev",
+    "upload": "hs project upload"
+  },
+  "dependencies": {
+    "@hubspot/ui-extensions": "^0.12.1",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.48",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

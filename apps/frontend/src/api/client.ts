@@ -1,0 +1,93 @@
+import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+export const apiClient: AxiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+/**
+ * Get the current account ID from localStorage
+ */
+export function getAccountId(): string | null {
+  return localStorage.getItem('hubspot_account_id');
+}
+
+/**
+ * Get the current portal ID from localStorage
+ */
+export function getPortalId(): string | null {
+  return localStorage.getItem('hubspot_portal_id');
+}
+
+/**
+ * Build a path with accountId prefix
+ */
+export function withAccountId(path: string): string {
+  const accountId = getAccountId();
+  if (!accountId) {
+    throw new Error('No account ID found. Please connect to HubSpot first.');
+  }
+  return `/accounts/${accountId}${path}`;
+}
+
+/**
+ * Build a path with accountId prefix for v1 API
+ */
+export function withAccountIdV1(path: string): string {
+  const accountId = getAccountId();
+  if (!accountId) {
+    throw new Error('No account ID found. Please connect to HubSpot first.');
+  }
+  return `/v1/accounts/${accountId}${path}`;
+}
+
+// Request interceptor - add portalId to requests that need it
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  // Add portalId as query param for hubspot oauth endpoints
+  if (config.url?.includes('/hubspot/oauth/')) {
+    const portalId = getPortalId();
+    if (portalId) {
+      config.params = { ...config.params, portal_id: portalId };
+    }
+  }
+  return config;
+});
+
+// Response interceptor - handle 401 errors
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    if (error.response?.status === 401) {
+      // Clear auth data and redirect to connect
+      localStorage.removeItem('hubspot_portal_id');
+      localStorage.removeItem('hubspot_account_id');
+      window.location.href = '/connect';
+    }
+    return Promise.reject(error);
+  },
+);
+
+// Type-safe API error
+export interface ApiError {
+  message: string;
+  statusCode: number;
+  error?: string;
+}
+
+export function isApiError(error: unknown): error is AxiosError<ApiError> {
+  return axios.isAxiosError(error);
+}
+
+export function getErrorMessage(error: unknown): string {
+  if (isApiError(error)) {
+    return error.response?.data?.message || error.message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'An unexpected error occurred';
+}

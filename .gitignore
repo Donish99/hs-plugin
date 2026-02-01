@@ -1,7 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
-pnpm-lock.yaml
 
 # Build output
 dist/
@@ -45,3 +43,13 @@ pids/
 # Temporary files
 tmp/
 temp/
+
+# pnpm
+pnpm-lock.yaml
+
+# HubSpot Extensions
+apps/hubspot-extensions/.env
+apps/hubspot-extensions/.hubspot
+
+# Turbo (if added later)
+.turbo

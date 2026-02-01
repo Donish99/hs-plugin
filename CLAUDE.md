@@ -3,12 +3,32 @@
 ## Project Overview
 Building a HubSpot-native plugin that identifies dormant leads and re-engages them using AI-generated personalized email/SMS messages.
 
+## Project Structure (Monorepo)
+```
+/hs/
+├── apps/
+│   ├── backend/           # NestJS API (@hsdl/backend)
+│   ├── frontend/          # React + Vite (@hsdl/frontend)
+│   └── hubspot-extensions/ # HubSpot UI extensions (@hsdl/hubspot-extensions)
+├── packages/
+│   └── shared-types/      # Shared TypeScript types (@hsdl/shared-types)
+├── package.json           # Root workspace package.json
+├── pnpm-workspace.yaml    # Workspace configuration
+├── tsconfig.base.json     # Base TypeScript config
+├── .eslintrc.js           # Root ESLint config
+├── .prettierrc
+├── CLAUDE.md
+└── milestones/
+```
+
 ## Key Documents
 - **Master Plan**: `/Users/akhmadullonurmakhamatov/Desktop/hs/plan.md`
 - **Milestones**: `/Users/akhmadullonurmakhamatov/Desktop/hs/milestones/`
 
 ## Tech Stack
-- **Backend**: NestJS (TypeScript)
+- **Backend**: NestJS (TypeScript) - `apps/backend/`
+- **Frontend**: React + Vite + TailwindCSS - `apps/frontend/`
+- **HubSpot Extensions**: React + HubSpot UI Extensions SDK - `apps/hubspot-extensions/`
 - **Database**: PostgreSQL 17 with TypeORM
 - **Cache/Queue**: Redis 7 + Bull
 - **AI**: OpenAI API (GPT-4o)
@@ -32,7 +52,7 @@ Building a HubSpot-native plugin that identifies dormant leads and re-engages th
   - E2E tests for critical user flows
 - Test file naming: `*.spec.ts` for unit tests, `*.e2e-spec.ts` for E2E tests
 - Use mocks for external services (HubSpot, OpenAI, SendGrid, Twilio)
-- Run tests before committing: `npm run test`
+- Run tests before committing: `pnpm test`
 - All tests must pass before marking a feature complete
 
 ### 2. Milestone Tracking
@@ -48,6 +68,7 @@ Building a HubSpot-native plugin that identifies dormant leads and re-engages th
 - Use dependency injection
 - Write interfaces for all data structures
 - Add JSDoc comments for public methods
+- Use shared types from `@hsdl/shared-types` when applicable
 
 ### 4. HubSpot Integration
 - Always validate OAuth tokens before API calls
@@ -76,9 +97,9 @@ Building a HubSpot-native plugin that identifies dormant leads and re-engages th
 
 ---
 
-## File Structure (Target)
+## Backend File Structure
 ```
-src/
+apps/backend/src/
 ├── app.module.ts
 ├── main.ts
 ├── config/
@@ -89,85 +110,81 @@ src/
 │   ├── hubspot.module.ts
 │   ├── services/
 │   │   ├── oauth.service.ts
-│   │   ├── oauth.service.spec.ts        # Unit tests
+│   │   ├── oauth.service.spec.ts
 │   │   ├── contacts.service.ts
-│   │   ├── contacts.service.spec.ts     # Unit tests
-│   │   ├── webhooks.service.ts
-│   │   └── webhooks.service.spec.ts     # Unit tests
+│   │   └── contacts.service.spec.ts
 │   └── controllers/
 │       ├── oauth.controller.ts
-│       ├── oauth.controller.spec.ts     # Unit tests
-│       ├── webhooks.controller.ts
-│       └── webhooks.controller.spec.ts  # Unit tests
+│       └── oauth.controller.spec.ts
 ├── campaigns/
 │   ├── campaigns.module.ts
 │   ├── services/
-│   │   ├── dormancy.service.ts
-│   │   ├── dormancy.service.spec.ts
+│   │   ├── dormancy-rules.service.ts
 │   │   ├── scanner.service.ts
-│   │   ├── scanner.service.spec.ts
-│   │   ├── campaign.service.ts
-│   │   └── campaign.service.spec.ts
+│   │   └── dormancy-detection.service.ts
 │   └── controllers/
 ├── ai/
 │   ├── ai.module.ts
 │   ├── services/
 │   │   ├── generator.service.ts
-│   │   ├── generator.service.spec.ts
-│   │   ├── classifier.service.ts
-│   │   ├── classifier.service.spec.ts
 │   │   ├── context.service.ts
-│   │   └── context.service.spec.ts
-│   └── templates/
+│   │   ├── prompt.service.ts
+│   │   └── review.service.ts
+│   └── controllers/
 ├── outreach/
 │   ├── outreach.module.ts
 │   ├── services/
 │   │   ├── email.service.ts
-│   │   ├── email.service.spec.ts
 │   │   ├── sms.service.ts
-│   │   ├── sms.service.spec.ts
-│   │   ├── hubspot-logger.service.ts
-│   │   └── hubspot-logger.service.spec.ts
+│   │   └── campaign-executor.service.ts
 │   └── controllers/
-├── analytics/
-│   ├── analytics.module.ts
-│   └── services/
 ├── jobs/
 │   ├── dormancy-scan.processor.ts
-│   ├── dormancy-scan.processor.spec.ts
 │   ├── send-campaign.processor.ts
-│   ├── send-campaign.processor.spec.ts
-│   ├── webhook-processor.ts
-│   └── webhook-processor.spec.ts
+│   └── contact-sync.processor.ts
 ├── entities/
 │   ├── hubspot-account.entity.ts
 │   ├── dormancy-rule.entity.ts
 │   ├── campaign.entity.ts
 │   ├── outreach-record.entity.ts
-│   └── response.entity.ts
+│   ├── message-variant.entity.ts
+│   └── review-queue.entity.ts
 └── test/
-    ├── mocks/                           # Shared mocks
-    │   ├── hubspot.mock.ts
-    │   ├── openai.mock.ts
-    │   ├── sendgrid.mock.ts
-    │   └── twilio.mock.ts
-    ├── fixtures/                        # Test data
-    │   ├── contacts.fixture.ts
-    │   ├── campaigns.fixture.ts
-    │   └── accounts.fixture.ts
-    └── helpers/                         # Test utilities
-        └── test-utils.ts
-
-test/                                    # E2E tests
-├── app.e2e-spec.ts
-├── oauth.e2e-spec.ts
-├── campaigns.e2e-spec.ts
-└── webhooks.e2e-spec.ts
+    ├── mocks/
+    ├── fixtures/
+    └── helpers/
 ```
 
 ---
 
 ## Common Commands
+
+### Root (Monorepo) Commands
+```bash
+# Install all dependencies
+pnpm install
+
+# Run all apps in development
+pnpm dev
+
+# Run specific apps
+pnpm dev:backend        # Start NestJS on port 3000
+pnpm dev:frontend       # Start Vite on port 5173
+
+# Build all packages
+pnpm build
+
+# Run all tests
+pnpm test
+
+# Lint all packages
+pnpm lint
+
+# Clean all node_modules and dist
+pnpm clean
+```
+
+### Backend Commands (from apps/backend/)
 ```bash
 # Start development
 pnpm start:dev
@@ -180,21 +197,30 @@ pnpm migration:generate -- -n MigrationName
 
 # TDD Commands
 pnpm test              # Run all unit tests
-pnpm test:watch        # Run tests in watch mode (TDD mode)
-pnpm test:cov          # Run tests with coverage report
+pnpm test:watch        # Run tests in watch mode
+pnpm test:cov          # Run tests with coverage
 pnpm test:e2e          # Run end-to-end tests
-pnpm test:debug        # Debug tests
+```
 
-# Lint
-pnpm lint
+### Frontend Commands (from apps/frontend/)
+```bash
+pnpm dev               # Start Vite dev server
+pnpm build             # Build for production
+pnpm test              # Run Vitest tests
+pnpm test:coverage     # Run tests with coverage
+```
 
-# Install dependencies
-pnpm install
+### HubSpot Extensions Commands (from apps/hubspot-extensions/)
+```bash
+pnpm start             # Start HubSpot project dev
+pnpm upload            # Upload to HubSpot
 ```
 
 ---
 
 ## Environment Variables Required
+
+### Backend (.env in apps/backend/)
 ```
 HUBSPOT_CLIENT_ID
 HUBSPOT_CLIENT_SECRET
@@ -208,6 +234,11 @@ TWILIO_AUTH_TOKEN
 TWILIO_PHONE
 ENCRYPTION_KEY
 APP_URL
+```
+
+### Frontend (.env in apps/frontend/)
+```
+VITE_API_URL=http://localhost:3000
 ```
 
 ---

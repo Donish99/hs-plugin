@@ -1,0 +1,41 @@
+{
+  "name": "Dormant Lead Reactivation",
+  "description": "AI-powered dormant lead reactivation plugin for HubSpot",
+  "uid": "dormant-lead-reactivation",
+  "scopes": [
+    "crm.objects.contacts.read",
+    "crm.objects.contacts.write"
+  ],
+  "public": false,
+  "extensions": {
+    "crm": {
+      "cards": [
+        {
+          "file": "extensions/DormancyCard/DormancyCard.jsx",
+          "location": "crm.record.tab",
+          "objectTypes": [
+            { "name": "contact" }
+          ]
+        },
+        {
+          "file": "extensions/MessagePreviewCard/MessagePreviewCard.jsx",
+          "location": "crm.record.tab",
+          "objectTypes": [
+            { "name": "contact" }
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "file": "extensions/QuickActionButton/QuickActionButton.jsx",
+          "location": "crm.record.action",
+          "context": {
+            "objectTypes": [
+              { "name": "contact" }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
