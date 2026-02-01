@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { AccountId } from '../../common/decorators/account.decorator';
 import {
   SettingsService,
   AccountSettings,
@@ -27,7 +28,7 @@ export class SettingsController {
    * Get all account settings
    */
   @Get()
-  async getSettings(@Param('accountId') accountId: string): Promise<AccountSettings> {
+  async getSettings(@AccountId() accountId: string): Promise<AccountSettings> {
     return this.settingsService.getSettings(accountId);
   }
 
@@ -37,7 +38,7 @@ export class SettingsController {
   @Put()
   @HttpCode(HttpStatus.OK)
   async updateSettings(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Body() updates: UpdateSettingsDto,
   ): Promise<AccountSettings> {
     return this.settingsService.updateSettings(accountId, updates);
@@ -47,7 +48,7 @@ export class SettingsController {
    * Get sending limits
    */
   @Get('sending-limits')
-  async getSendingLimits(@Param('accountId') accountId: string): Promise<SendingLimits> {
+  async getSendingLimits(@AccountId() accountId: string): Promise<SendingLimits> {
     return this.settingsService.getSendingLimits(accountId);
   }
 
@@ -57,7 +58,7 @@ export class SettingsController {
   @Put('sending-limits')
   @HttpCode(HttpStatus.OK)
   async updateSendingLimits(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Body() updates: UpdateSendingLimitsDto,
   ): Promise<SendingLimits> {
     return this.settingsService.updateSendingLimits(accountId, updates);
@@ -67,7 +68,7 @@ export class SettingsController {
    * Get AI settings
    */
   @Get('ai')
-  async getAiSettings(@Param('accountId') accountId: string): Promise<AiSettings> {
+  async getAiSettings(@AccountId() accountId: string): Promise<AiSettings> {
     return this.settingsService.getAiSettings(accountId);
   }
 
@@ -77,7 +78,7 @@ export class SettingsController {
   @Put('ai')
   @HttpCode(HttpStatus.OK)
   async updateAiSettings(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Body() updates: UpdateAiSettingsDto,
   ): Promise<AiSettings> {
     return this.settingsService.updateAiSettings(accountId, updates);
@@ -88,7 +89,7 @@ export class SettingsController {
    */
   @Get('notifications')
   async getNotificationPreferences(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
   ): Promise<NotificationPreferences> {
     return this.settingsService.getNotificationPreferences(accountId);
   }
@@ -99,7 +100,7 @@ export class SettingsController {
   @Put('notifications')
   @HttpCode(HttpStatus.OK)
   async updateNotificationPreferences(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Body() updates: UpdateNotificationPreferencesDto,
   ): Promise<NotificationPreferences> {
     return this.settingsService.updateNotificationPreferences(accountId, updates);

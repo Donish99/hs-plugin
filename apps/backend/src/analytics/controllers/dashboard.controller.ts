@@ -6,6 +6,7 @@ import {
   Header,
   BadRequestException,
 } from '@nestjs/common';
+import { AccountId } from '../../common/decorators/account.decorator';
 import {
   MetricsService,
   CampaignMetrics,
@@ -86,7 +87,7 @@ export class DashboardController {
    */
   @Get('overview')
   async getDashboardOverview(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ): Promise<DashboardOverview> {
@@ -106,7 +107,7 @@ export class DashboardController {
    */
   @Get('campaigns/:campaignId')
   async getCampaignMetrics(
-    @Param('accountId') _accountId: string,
+    @AccountId() _accountId: string,
     @Param('campaignId') campaignId: string,
   ): Promise<CampaignMetrics> {
     return this.metricsService.getCampaignMetrics(campaignId);
@@ -117,7 +118,7 @@ export class DashboardController {
    */
   @Get('time-series')
   async getTimeSeriesData(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('granularity') granularity: 'daily' | 'weekly' | 'monthly' = 'daily',
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -131,7 +132,7 @@ export class DashboardController {
    */
   @Get('campaigns/compare')
   async compareCampaigns(
-    @Param('accountId') _accountId: string,
+    @AccountId() _accountId: string,
     @Query('campaignIds') campaignIds: string[],
   ): Promise<CampaignComparison[]> {
     if (!campaignIds || campaignIds.length === 0) {
@@ -145,7 +146,7 @@ export class DashboardController {
    */
   @Get('roi')
   async getRoiMetrics(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ): Promise<ROIMetrics> {
@@ -158,7 +159,7 @@ export class DashboardController {
    */
   @Get('roi/costs')
   async getCostBreakdown(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ): Promise<CostBreakdown> {
@@ -171,7 +172,7 @@ export class DashboardController {
    */
   @Get('roi/deals')
   async getDealAttribution(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('campaignId') campaignId?: string,
   ): Promise<DealAttribution[]> {
     return this.roiService.getDealAttribution(accountId, campaignId);
@@ -182,7 +183,7 @@ export class DashboardController {
    */
   @Get('roi/revenue')
   async getRevenueByPeriod(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('granularity') granularity: 'daily' | 'weekly' | 'monthly' = 'monthly',
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -196,7 +197,7 @@ export class DashboardController {
    */
   @Get('roi/progression')
   async getDealProgression(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ): Promise<DealStageProgression> {
@@ -209,7 +210,7 @@ export class DashboardController {
    */
   @Get('ab-tests/:variantGroupId')
   async getAbTestResults(
-    @Param('accountId') _accountId: string,
+    @AccountId() _accountId: string,
     @Param('variantGroupId') variantGroupId: string,
   ): Promise<AbTestResults> {
     const [variants, recommendation] = await Promise.all([
@@ -224,7 +225,7 @@ export class DashboardController {
    * Get best performing content
    */
   @Get('best-performers')
-  async getBestPerformers(@Param('accountId') accountId: string): Promise<BestPerformers> {
+  async getBestPerformers(@AccountId() accountId: string): Promise<BestPerformers> {
     const [subjectLines, sendTimes, tones] = await Promise.all([
       this.abTestService.getBestSubjectLines(accountId, 10),
       this.abTestService.getBestSendTimes(accountId),
@@ -239,7 +240,7 @@ export class DashboardController {
    */
   @Get('activity')
   async getActivityLog(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('page') page: number = 1,
     @Query('pageSize') pageSize: number = 20,
     @Query('eventType') eventType?: ActivityEvent,
@@ -268,7 +269,7 @@ export class DashboardController {
   @Get('activity/export')
   @Header('Content-Type', 'text/csv')
   async exportActivityLog(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('format') format: 'csv' | 'json' = 'csv',
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -281,7 +282,7 @@ export class DashboardController {
    * Get industry benchmarks and comparison
    */
   @Get('benchmarks')
-  async getBenchmarks(@Param('accountId') accountId: string): Promise<BenchmarksResponse> {
+  async getBenchmarks(@AccountId() accountId: string): Promise<BenchmarksResponse> {
     const [industry, comparison] = await Promise.all([
       this.metricsService.getIndustryBenchmarks(),
       this.metricsService.getBenchmarkComparison(accountId),

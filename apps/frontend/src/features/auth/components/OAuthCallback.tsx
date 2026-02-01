@@ -1,6 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
+import { authKeys } from '@/api/hooks/useAuth';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,11 +10,14 @@ import { Button } from '@/components/ui/button';
 export function OAuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { setAuthenticated } = useAuth();
   const hasRun = useRef(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const success = searchParams.get('success');
   const portalId = searchParams.get('portal_id');
+  const accountId = searchParams.get('account_id');
   const error = searchParams.get('error');
 
   useEffect(() => {
@@ -20,15 +25,42 @@ export function OAuthCallback() {
     hasRun.current = true;
 
     if (error) {
+      // Clear any stored OAuth state
+      sessionStorage.removeItem('oauth_state');
       return;
     }
 
-    if (success === 'true' && portalId) {
-      // Backend already processed the OAuth, just set auth state
+    if (success === 'true' && portalId && accountId) {
+      setIsProcessing(true);
+
+      // Clear OAuth state from sessionStorage
+      sessionStorage.removeItem('oauth_state');
+
+      // Backend already processed the OAuth, set auth state with proper accountId (UUID)
+      setAuthenticated(portalId, accountId);
+
+      // Use queueMicrotask to ensure React state updates propagate
+      // before invalidating queries and navigating
+      queueMicrotask(async () => {
+        // Wait for query invalidation to complete (use the new portalId in the key)
+        await queryClient.invalidateQueries({ queryKey: authKeys.status(portalId) });
+
+        // Navigate to dashboard
+        navigate('/dashboard', { replace: true });
+      });
+    } else if (success === 'true' && portalId && !accountId) {
+      // Fallback for backwards compatibility - use portalId as accountId
+      // This should rarely happen with the updated backend
+      setIsProcessing(true);
+      sessionStorage.removeItem('oauth_state');
       setAuthenticated(portalId, portalId);
-      navigate('/dashboard', { replace: true });
+
+      queueMicrotask(async () => {
+        await queryClient.invalidateQueries({ queryKey: authKeys.status(portalId) });
+        navigate('/dashboard', { replace: true });
+      });
     }
-  }, [success, portalId, error, setAuthenticated, navigate]);
+  }, [success, portalId, accountId, error, setAuthenticated, navigate, queryClient]);
 
   // Error states
   if (error) {
@@ -36,6 +68,7 @@ export function OAuthCallback() {
       access_denied: 'You denied access to your HubSpot account.',
       missing_code: 'Missing authorization code from HubSpot.',
       invalid_token: 'Could not verify your HubSpot account.',
+      invalid_state: 'Invalid or expired authorization request. Please try again.',
       auth_failed: 'Failed to authenticate with HubSpot.',
     };
 
@@ -60,7 +93,7 @@ export function OAuthCallback() {
   }
 
   // Success state (brief moment before redirect)
-  if (success === 'true' && portalId) {
+  if ((success === 'true' && portalId) || isProcessing) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center gap-4 text-center">

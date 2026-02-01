@@ -8,6 +8,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { AccountId } from '../../common/decorators/account.decorator';
 import { ReviewService, AutoApproveRules } from '../services/review.service';
 import { ReviewQueue } from '../../entities/review-queue.entity';
 
@@ -68,7 +69,7 @@ export class ReviewController {
    */
   @Get()
   async getPendingReviews(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query() query: GetPendingQuery,
   ): Promise<{ reviews: ReviewQueue[]; count: number }> {
     const reviews = await this.reviewService.getPendingReviews(accountId, {
@@ -86,7 +87,7 @@ export class ReviewController {
    */
   @Get(':reviewId')
   async getReview(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('reviewId') reviewId: string,
   ): Promise<ReviewQueue> {
     const review = await this.reviewService.getReviewById(reviewId);
@@ -102,7 +103,7 @@ export class ReviewController {
    * Get review statistics
    */
   @Get('stats/summary')
-  async getStats(@Param('accountId') accountId: string) {
+  async getStats(@AccountId() accountId: string) {
     return this.reviewService.getReviewStats(accountId);
   }
 
@@ -111,7 +112,7 @@ export class ReviewController {
    */
   @Post('queue')
   async queueForReview(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Body() dto: QueueMessageDto,
   ): Promise<ReviewQueue> {
     if (!dto.variantId || dto.variantId.trim() === '') {
@@ -126,7 +127,7 @@ export class ReviewController {
    */
   @Post(':reviewId/approve')
   async approveReview(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('reviewId') reviewId: string,
     @Body() dto: ApproveDto,
   ): Promise<ReviewQueue> {
@@ -148,7 +149,7 @@ export class ReviewController {
    */
   @Post(':reviewId/reject')
   async rejectReview(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('reviewId') reviewId: string,
     @Body() dto: RejectDto,
   ): Promise<ReviewQueue> {
@@ -170,7 +171,7 @@ export class ReviewController {
    */
   @Post(':reviewId/edit')
   async editAndApprove(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('reviewId') reviewId: string,
     @Body() dto: EditAndApproveDto,
   ): Promise<ReviewQueue> {
@@ -205,7 +206,7 @@ export class ReviewController {
    */
   @Post(':reviewId/regenerate')
   async requestRegeneration(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('reviewId') reviewId: string,
   ): Promise<{ success: boolean; variantId: string }> {
     const result = await this.reviewService.requestRegeneration(reviewId);
@@ -220,7 +221,7 @@ export class ReviewController {
    * Bulk approve multiple reviews
    */
   @Post('bulk/approve')
-  async bulkApprove(@Param('accountId') accountId: string, @Body() dto: BulkApproveDto) {
+  async bulkApprove(@AccountId() accountId: string, @Body() dto: BulkApproveDto) {
     if (!dto.reviewIds || dto.reviewIds.length === 0) {
       throw new BadRequestException('reviewIds array is required');
     }
@@ -236,7 +237,7 @@ export class ReviewController {
    * Bulk reject multiple reviews
    */
   @Post('bulk/reject')
-  async bulkReject(@Param('accountId') accountId: string, @Body() dto: BulkRejectDto) {
+  async bulkReject(@AccountId() accountId: string, @Body() dto: BulkRejectDto) {
     if (!dto.reviewIds || dto.reviewIds.length === 0) {
       throw new BadRequestException('reviewIds array is required');
     }
@@ -252,7 +253,7 @@ export class ReviewController {
    * Auto-approve messages matching rules
    */
   @Post('auto-approve')
-  async autoApprove(@Param('accountId') accountId: string, @Body() dto: AutoApproveDto) {
+  async autoApprove(@AccountId() accountId: string, @Body() dto: AutoApproveDto) {
     const rules: AutoApproveRules = {
       trustedCompanies: dto.trustedCompanies,
       trustedDomains: dto.trustedDomains,

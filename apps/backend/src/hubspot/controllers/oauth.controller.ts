@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Query,
   Res,
   BadRequestException,
@@ -10,6 +11,7 @@ import {
 import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { OAuthService } from '../services/oauth.service';
+import { OAuthStateService } from '../services/oauth-state.service';
 
 /**
  * Default OAuth scopes required for the plugin
@@ -33,6 +35,7 @@ export class OAuthController {
 
   constructor(
     private readonly oauthService: OAuthService,
+    private readonly oauthStateService: OAuthStateService,
     private readonly configService: ConfigService,
   ) {
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
@@ -40,16 +43,16 @@ export class OAuthController {
 
   /**
    * Initiate HubSpot OAuth flow
-   * Returns the authorization URL for the client to redirect to
+   * Returns the authorization URL and state for the client to redirect to
    */
   @Get('install')
-  install(): { url: string } {
-    const state = this.generateState();
+  async install(): Promise<{ url: string; state: string }> {
+    const state = await this.oauthStateService.generateState();
     const url = this.oauthService.getAuthorizationUrl(DEFAULT_SCOPES, state);
 
-    this.logger.log('Generated OAuth authorization URL');
+    this.logger.log('Generated OAuth authorization URL with CSRF state');
 
-    return { url };
+    return { url, state };
   }
 
   /**
@@ -64,12 +67,16 @@ export class OAuthController {
     @Query('state') state?: string,
     @Res() res?: Response,
   ): Promise<void> {
-    this.logger.log(`OAuth callback received - code: ${code ? 'yes' : 'no'}, error: ${error || 'none'}`);
+    this.logger.log(
+      `OAuth callback received - code: ${code ? 'yes' : 'no'}, error: ${error || 'none'}, state: ${state ? 'yes' : 'no'}`,
+    );
 
     // Handle HubSpot error response
     if (error) {
       this.logger.error(`HubSpot OAuth error: ${error} - ${errorDescription}`);
-      return res?.redirect(`${this.frontendUrl}/oauth/callback?error=${encodeURIComponent(error)}&message=${encodeURIComponent(errorDescription || '')}`);
+      return res?.redirect(
+        `${this.frontendUrl}/oauth/callback?error=${encodeURIComponent(error)}&message=${encodeURIComponent(errorDescription || '')}`,
+      );
     }
 
     // Validate required parameters
@@ -78,9 +85,19 @@ export class OAuthController {
       return res?.redirect(`${this.frontendUrl}/oauth/callback?error=missing_code`);
     }
 
-    // TODO: Validate state parameter against stored state for CSRF protection
+    // Validate state parameter for CSRF protection
+    if (!state) {
+      this.logger.error('Missing state parameter');
+      return res?.redirect(`${this.frontendUrl}/oauth/callback?error=invalid_state`);
+    }
 
-    this.logger.log('Processing OAuth callback');
+    const isValidState = await this.oauthStateService.validateAndConsumeState(state);
+    if (!isValidState) {
+      this.logger.error('Invalid or expired state parameter');
+      return res?.redirect(`${this.frontendUrl}/oauth/callback?error=invalid_state`);
+    }
+
+    this.logger.log('Processing OAuth callback with validated state');
 
     try {
       // Exchange code for tokens
@@ -95,12 +112,14 @@ export class OAuthController {
       }
 
       // Save account with encrypted tokens
-      await this.oauthService.saveAccount(portalIdNum, tokens);
+      const account = await this.oauthService.saveAccount(portalIdNum, tokens);
 
-      this.logger.log(`Successfully connected portal ${portalIdNum}`);
+      this.logger.log(`Successfully connected portal ${portalIdNum} (account: ${account.id})`);
 
-      // Redirect to frontend with success
-      return res?.redirect(`${this.frontendUrl}/oauth/callback?success=true&portal_id=${portalIdNum}`);
+      // Redirect to frontend with success, including account_id (UUID)
+      return res?.redirect(
+        `${this.frontendUrl}/oauth/callback?success=true&portal_id=${portalIdNum}&account_id=${account.id}`,
+      );
     } catch (error) {
       this.logger.error('OAuth callback failed', error);
       return res?.redirect(`${this.frontendUrl}/oauth/callback?error=auth_failed`);
@@ -128,6 +147,7 @@ export class OAuthController {
   async getStatus(@Query('portal_id') portalId: number): Promise<{
     connected: boolean;
     portalId?: number;
+    accountId?: string;
     tokenExpired?: boolean;
     companyName?: string;
   }> {
@@ -142,17 +162,24 @@ export class OAuthController {
     return {
       connected: true,
       portalId: account.portalId,
+      accountId: account.id,
       tokenExpired,
       companyName: account.companyName,
     };
   }
 
   /**
-   * Generate a random state string for CSRF protection
+   * Disconnect HubSpot account and revoke tokens
    */
-  private generateState(): string {
-    return (
-      Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
-    );
+  @Post('disconnect')
+  async disconnect(@Query('portal_id') portalId: number): Promise<{ success: boolean }> {
+    if (!portalId) {
+      throw new BadRequestException('Portal ID is required');
+    }
+
+    this.logger.log(`Disconnecting portal ${portalId}`);
+
+    const success = await this.oauthService.revokeTokens(portalId);
+    return { success };
   }
 }

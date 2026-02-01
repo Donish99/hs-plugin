@@ -142,13 +142,13 @@ describe('TokenValidationMiddleware', () => {
       expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should attach portalId and accessToken to request object', async () => {
+    it('should attach portalId, accountId and accessToken to request object', async () => {
       const req = mockRequest();
       req.headers['x-portal-id'] = '12345';
       const res = mockResponse();
 
       mockOAuthService.getAccountByPortalId.mockResolvedValue({
-        id: 'uuid',
+        id: 'test-uuid-123',
         portalId: 12345,
         accessToken: 'valid-token',
         refreshToken: 'refresh-token',
@@ -158,6 +158,7 @@ describe('TokenValidationMiddleware', () => {
       await middleware.use(req as any, res as any, mockNext);
 
       expect(req['portalId']).toBe(12345);
+      expect(req['accountId']).toBe('test-uuid-123');
       expect(req['accessToken']).toBe('valid-token');
     });
 

@@ -3,21 +3,22 @@ import { authApi, OAuthCallbackResponse } from '../endpoints/auth';
 
 export const authKeys = {
   all: ['auth'] as const,
-  status: () => [...authKeys.all, 'status'] as const,
+  status: (portalId?: string | null) => [...authKeys.all, 'status', portalId ?? 'none'] as const,
 };
 
-export function useConnectionStatus() {
+export function useConnectionStatus(portalId: string | null) {
   return useQuery({
-    queryKey: authKeys.status(),
+    queryKey: authKeys.status(portalId),
     queryFn: authApi.getConnectionStatus,
     retry: false,
     staleTime: 1000 * 60 * 10, // 10 minutes
+    enabled: !!portalId, // Only run query when we have a portalId
   });
 }
 
 // Alias for backwards compatibility
-export function useAccountInfo() {
-  return useConnectionStatus();
+export function useAccountInfo(portalId: string | null) {
+  return useConnectionStatus(portalId);
 }
 
 export function useInstallUrl() {
@@ -47,11 +48,16 @@ export function useDisconnect() {
 
   return useMutation({
     mutationFn: async () => {
-      // Backend doesn't have a disconnect endpoint yet
-      // Just clear local state
-      return Promise.resolve();
+      // Call backend to revoke tokens
+      return authApi.disconnect();
     },
     onSuccess: () => {
+      localStorage.removeItem('hubspot_portal_id');
+      localStorage.removeItem('hubspot_account_id');
+      queryClient.clear();
+    },
+    onError: () => {
+      // Even if backend fails, clear local state
       localStorage.removeItem('hubspot_portal_id');
       localStorage.removeItem('hubspot_account_id');
       queryClient.clear();
@@ -59,8 +65,8 @@ export function useDisconnect() {
   });
 }
 
-export function useIsConnected() {
-  const { data, isLoading } = useConnectionStatus();
+export function useIsConnected(portalId: string | null) {
+  const { data, isLoading } = useConnectionStatus(portalId);
   return {
     isConnected: data?.connected && !data?.tokenExpired,
     isLoading,

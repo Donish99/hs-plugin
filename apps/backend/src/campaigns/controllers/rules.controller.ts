@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Logger } from '@nestjs/common';
+import { AccountId } from '../../common/decorators/account.decorator';
 import {
   DormancyRulesService,
   CreateDormancyRuleDto,
@@ -17,7 +18,7 @@ export class RulesController {
    */
   @Post()
   async create(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Body() createDto: CreateDormancyRuleDto,
   ): Promise<DormancyRule> {
     this.logger.log(`Creating rule for account ${accountId}`);
@@ -28,7 +29,7 @@ export class RulesController {
    * Get all dormancy rules for an account
    */
   @Get()
-  async findAll(@Param('accountId') accountId: string): Promise<DormancyRule[]> {
+  async findAll(@AccountId() accountId: string): Promise<DormancyRule[]> {
     return this.rulesService.findAll(accountId);
   }
 
@@ -37,7 +38,7 @@ export class RulesController {
    */
   @Get(':ruleId')
   async findOne(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('ruleId') ruleId: string,
   ): Promise<DormancyRule> {
     return this.rulesService.findOne(accountId, ruleId);
@@ -48,7 +49,7 @@ export class RulesController {
    */
   @Put(':ruleId')
   async update(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('ruleId') ruleId: string,
     @Body() updateDto: UpdateDormancyRuleDto,
   ): Promise<DormancyRule> {
@@ -61,7 +62,7 @@ export class RulesController {
    */
   @Delete(':ruleId')
   async delete(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('ruleId') ruleId: string,
   ): Promise<void> {
     this.logger.log(`Deleting rule ${ruleId} for account ${accountId}`);
@@ -73,7 +74,7 @@ export class RulesController {
    */
   @Patch(':ruleId/toggle')
   async toggleActive(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('ruleId') ruleId: string,
   ): Promise<DormancyRule> {
     return this.rulesService.toggleActive(accountId, ruleId);

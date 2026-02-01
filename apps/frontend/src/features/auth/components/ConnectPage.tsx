@@ -14,14 +14,16 @@ export function ConnectPage() {
 
   // Redirect if already authenticated
   useEffect(() => {
+    console.log(isAuthenticated, 'asdas');
     if (isAuthenticated) {
-      navigate('/dashboard');
+      // navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
 
   const handleConnect = async () => {
     try {
       const { url } = await installUrlMutation.mutateAsync();
+      console.log(url);
       window.location.href = url;
     } catch (error) {
       console.error('Failed to get install URL:', error);
@@ -41,9 +43,7 @@ export function ConnectPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-foreground">Dormant Lead Reactivation</h1>
-          <p className="mt-2 text-muted-foreground">
-            AI-powered lead reactivation for HubSpot
-          </p>
+          <p className="mt-2 text-muted-foreground">AI-powered lead reactivation for HubSpot</p>
         </div>
 
         <Card>

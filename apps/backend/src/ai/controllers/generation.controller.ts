@@ -1,4 +1,5 @@
 import { Controller, Post, Body, Param, ParseIntPipe, BadRequestException } from '@nestjs/common';
+import { AccountId } from '../../common/decorators/account.decorator';
 import {
   GeneratorService,
   GeneratedMessage,
@@ -86,7 +87,7 @@ export class GenerationController {
    */
   @Post('message')
   async generateMessage(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('portalId', ParseIntPipe) portalId: number,
     @Body() dto: GenerateMessageDto,
   ): Promise<GenerationResponse> {
@@ -113,7 +114,7 @@ export class GenerationController {
    */
   @Post('variants')
   async generateVariants(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('portalId', ParseIntPipe) portalId: number,
     @Body() dto: GenerateVariantsDto,
   ): Promise<VariantsResponse> {
@@ -142,7 +143,7 @@ export class GenerationController {
    */
   @Post('batch')
   async generateBatch(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('portalId', ParseIntPipe) portalId: number,
     @Body() dto: GenerateBatchDto,
   ): Promise<BatchResponse> {
@@ -176,7 +177,7 @@ export class GenerationController {
    */
   @Post('preview')
   async previewMessage(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Param('portalId', ParseIntPipe) portalId: number,
     @Body() dto: GenerateMessageDto,
   ): Promise<PreviewResponse> {

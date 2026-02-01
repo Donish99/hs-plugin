@@ -7,6 +7,7 @@ declare global {
   namespace Express {
     interface Request {
       portalId?: number;
+      accountId?: string; // UUID of the HubspotAccount
       accessToken?: string;
     }
   }
@@ -52,6 +53,7 @@ export class TokenValidationMiddleware implements NestMiddleware {
 
       // Attach to request for downstream use
       req.portalId = portalIdNum;
+      req.accountId = account.id; // UUID for database queries
       req.accessToken = accessToken;
 
       next();

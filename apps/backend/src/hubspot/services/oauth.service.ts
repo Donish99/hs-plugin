@@ -303,9 +303,7 @@ export class OAuthService {
   }> {
     try {
       // Use direct HTTP call to get token info
-      const response = await fetch(
-        `https://api.hubapi.com/oauth/v1/access-tokens/${accessToken}`,
-      );
+      const response = await fetch(`https://api.hubapi.com/oauth/v1/access-tokens/${accessToken}`);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -313,7 +311,7 @@ export class OAuthService {
         throw new Error(`Failed to get token info: ${response.status}`);
       }
 
-      const result = await response.json() as {
+      const result = (await response.json()) as {
         hub_id: number;
         user_id: number;
         app_id: number;
@@ -332,5 +330,64 @@ export class OAuthService {
       this.logger.error('Failed to get token info', error);
       throw error;
     }
+  }
+
+  /**
+   * Revoke OAuth tokens and delete account from database
+   * @param portalId The portal ID to disconnect
+   * @returns true if successfully revoked, false otherwise
+   */
+  async revokeTokens(portalId: number): Promise<boolean> {
+    const account = await this.accountRepository.findOne({
+      where: { portalId },
+    });
+
+    if (!account) {
+      this.logger.warn(`No account found for portal ${portalId}`);
+      return false;
+    }
+
+    try {
+      // Get the refresh token to revoke
+      const refreshToken = this.decryptToken(account.refreshTokenEncrypted);
+
+      // Revoke token with HubSpot
+      // HubSpot doesn't have a public revocation endpoint, but we can delete the refresh token
+      // The access token will expire naturally within 30 minutes
+      // For now, we just delete from our database which effectively disconnects the account
+
+      this.logger.log(`Revoking tokens for portal ${portalId}`);
+
+      // Delete the account from database
+      await this.accountRepository.remove(account);
+
+      this.logger.log(`Successfully disconnected portal ${portalId}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to revoke tokens for portal ${portalId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get account by ID (UUID)
+   */
+  async getAccountById(accountId: string): Promise<AccountWithTokens | null> {
+    const account = await this.accountRepository.findOne({
+      where: { id: accountId },
+    });
+
+    if (!account) {
+      return null;
+    }
+
+    return {
+      id: account.id,
+      portalId: account.portalId,
+      accessToken: this.decryptToken(account.accessTokenEncrypted),
+      refreshToken: this.decryptToken(account.refreshTokenEncrypted),
+      tokenExpiresAt: account.tokenExpiresAt,
+      companyName: account.companyName,
+    };
   }
 }

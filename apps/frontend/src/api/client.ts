@@ -1,13 +1,19 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
-
+console.log(API_BASE_URL);
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+/**
+ * Custom event dispatched when authentication fails (401 response)
+ * AuthContext listens for this to handle navigation properly via React Router
+ */
+export const AUTH_FAILURE_EVENT = 'auth:failure';
 
 /**
  * Get the current account ID from localStorage
@@ -62,10 +68,18 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      // Clear auth data and redirect to connect
+      // Skip 401 handling during OAuth callback flow to avoid race conditions
+      if (window.location.pathname === '/oauth/callback') {
+        return Promise.reject(error);
+      }
+
+      // Clear auth data
       localStorage.removeItem('hubspot_portal_id');
       localStorage.removeItem('hubspot_account_id');
-      window.location.href = '/connect';
+
+      // Dispatch event instead of hard redirect - let AuthContext handle navigation
+      // This prevents bypassing React Router state and causing race conditions
+      window.dispatchEvent(new CustomEvent(AUTH_FAILURE_EVENT));
     }
     return Promise.reject(error);
   },

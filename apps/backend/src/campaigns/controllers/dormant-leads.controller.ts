@@ -10,6 +10,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
+import { AccountId } from '../../common/decorators/account.decorator';
 import { Response } from 'express';
 import { ScannerService, HubSpotContact, ScanResult } from '../services/scanner.service';
 import {
@@ -99,7 +100,7 @@ export class DormantLeadsController {
    */
   @Get()
   async getDormantLeads(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('portalId') portalId: number,
     @Query() query: ListDormantLeadsQuery,
   ): Promise<PaginatedResponse<PrioritizedContact>> {
@@ -162,7 +163,7 @@ export class DormantLeadsController {
    */
   @Get(':contactId')
   async getDormantLeadDetails(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('portalId') portalId: number,
     @Param('contactId') contactId: string,
   ): Promise<ContactDetailsResponse> {
@@ -192,7 +193,7 @@ export class DormantLeadsController {
    */
   @Get('report/:ruleId')
   async getDormancyReport(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('portalId') portalId: number,
     @Param('ruleId') ruleId: string,
   ): Promise<DormancyReport> {
@@ -211,7 +212,7 @@ export class DormantLeadsController {
    */
   @Post('campaign')
   async createCampaignFromDormantLeads(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('portalId') portalId: number,
     @Body() dto: CreateCampaignDto,
   ): Promise<CampaignCreationResult> {
@@ -257,7 +258,7 @@ export class DormantLeadsController {
    */
   @Get('export/csv')
   async exportDormantLeads(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('portalId') portalId: number,
     @Query() query: ListDormantLeadsQuery,
     @Res() res: Response,
@@ -324,7 +325,7 @@ export class DormantLeadsController {
    */
   @Post('bulk-select')
   async bulkSelectDormantLeads(
-    @Param('accountId') accountId: string,
+    @AccountId() accountId: string,
     @Query('portalId') portalId: number,
     @Body() dto: BulkSelectDto,
   ): Promise<BulkSelectResponse> {
