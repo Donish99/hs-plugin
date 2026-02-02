@@ -162,7 +162,7 @@ export class ContactsService {
         filters: Array<{
           propertyName: string;
           operator: string;
-          value: string;
+          value?: string;
         }>;
       }>;
       properties: string[];
@@ -289,7 +289,7 @@ export class ContactsService {
         filters: Array<{
           propertyName: string;
           operator: string;
-          value: string;
+          value?: string;
         }>;
       }>;
       properties: string[];
@@ -298,15 +298,29 @@ export class ContactsService {
   ): Promise<SearchResult> {
     const client = new Client({ accessToken });
 
+    // Operators that don't accept a value field
+    const noValueOperators = ['HAS_PROPERTY', 'NOT_HAS_PROPERTY'];
+
     try {
       // Convert string operators to enum values
+      // Conditionally exclude 'value' for operators that don't accept it
       const typedFilterGroups = searchRequest.filterGroups.map((group) => ({
-        filters: group.filters.map((filter) => ({
-          propertyName: filter.propertyName,
-          operator: filter.operator as FilterOperatorEnum,
-          value: filter.value,
-        })),
+        filters: group.filters.map((filter) => {
+          const baseFilter: { propertyName: string; operator: FilterOperatorEnum; value?: string } = {
+            propertyName: filter.propertyName,
+            operator: filter.operator as FilterOperatorEnum,
+          };
+
+          // Only include value if operator supports it
+          if (!noValueOperators.includes(filter.operator) && filter.value !== undefined) {
+            baseFilter.value = filter.value;
+          }
+
+          return baseFilter;
+        }),
       }));
+
+      this.logger.debug(`Executing HubSpot search with ${typedFilterGroups.length} filter groups`);
 
       const response = await client.crm.contacts.searchApi.doSearch({
         filterGroups: typedFilterGroups,
@@ -322,6 +336,8 @@ export class ContactsService {
         createdAt: contact.createdAt.toISOString(),
         updatedAt: contact.updatedAt.toISOString(),
       }));
+
+      this.logger.debug(`HubSpot search returned ${contacts.length} contacts (total: ${response.total})`);
 
       return {
         contacts,

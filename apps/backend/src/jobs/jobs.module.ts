@@ -9,6 +9,7 @@ import { DormancyScanScheduler } from './dormancy-scan.scheduler';
 import { SendCampaignProcessor } from './send-campaign.processor';
 import { WebhookProcessor } from './webhook.processor';
 import { ClassificationProcessor } from './classification.processor';
+import { ScanController } from './scan.controller';
 import { HubspotAccount } from '../entities/hubspot-account.entity';
 import { OutreachRecord } from '../entities/outreach-record.entity';
 import { Response } from '../entities/response.entity';
@@ -53,6 +54,7 @@ import { HubspotModule } from '../hubspot/hubspot.module';
     // HubspotModule for contact service
     HubspotModule,
   ],
+  controllers: [ScanController],
   providers: [
     DormancyScanProcessor,
     DormancyScanScheduler,

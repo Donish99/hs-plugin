@@ -1,39 +1,58 @@
 import { apiClient, withAccountId } from '../client';
 
-export interface DormancyCriterion {
-  field: string;
-  operator: 'equals' | 'not_equals' | 'greater_than' | 'less_than' | 'contains' | 'not_contains';
-  value: string | number;
+/**
+ * Action types for dormancy rules
+ */
+export type ActionType = 'email' | 'sms' | 'sequence' | 'task';
+
+/**
+ * Dormancy criteria - defines conditions for identifying dormant leads
+ */
+export interface DormancyCriteria {
+  min_days_inactive?: number;
+  no_email_opens_days?: number;
+  no_email_clicks_days?: number;
+  no_website_visits_days?: number;
+  deal_stages?: string[];
+  exclude_tags?: string[];
+  min_lead_score?: number;
+}
+
+/**
+ * Action configuration for what to do when a dormant lead is found
+ */
+export interface ActionConfig {
+  template?: string;
+  tone?: string;
+  sequenceId?: string;
+  taskOwnerId?: string;
+  [key: string]: unknown;
 }
 
 export interface DormancyRule {
   id: string;
   name: string;
-  description?: string;
   isActive: boolean;
-  daysSinceLastContact: number;
-  criteria: DormancyCriterion[];
-  priority: number;
-  matchedLeadsCount?: number;
+  criteria: DormancyCriteria;
+  actionType: ActionType;
+  actionConfig: ActionConfig;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface CreateRuleInput {
   name: string;
-  description?: string;
-  daysSinceLastContact: number;
-  criteria: DormancyCriterion[];
-  priority?: number;
+  criteria: DormancyCriteria;
+  actionType: ActionType;
+  actionConfig: ActionConfig;
+  isActive?: boolean;
 }
 
 export interface UpdateRuleInput {
   name?: string;
-  description?: string;
+  criteria?: DormancyCriteria;
+  actionType?: ActionType;
+  actionConfig?: ActionConfig;
   isActive?: boolean;
-  daysSinceLastContact?: number;
-  criteria?: DormancyCriterion[];
-  priority?: number;
 }
 
 export interface RulesListResponse {

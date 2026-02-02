@@ -101,6 +101,10 @@ export function CreateCampaignWizard() {
   };
 
   const onSubmit = async (data: CampaignFormData) => {
+    // Only submit on the final review step
+    if (currentStep !== steps.length - 1) {
+      return;
+    }
     try {
       await createCampaign.mutateAsync({
         ...data,
@@ -185,7 +189,15 @@ export function CreateCampaignWizard() {
         </nav>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        onKeyDown={(e) => {
+          // Prevent Enter key from submitting the form on non-final steps
+          if (e.key === 'Enter' && currentStep !== steps.length - 1) {
+            e.preventDefault();
+          }
+        }}
+      >
         {/* Step 1: Basics */}
         {currentStep === 0 && (
           <Card>
@@ -319,7 +331,7 @@ export function CreateCampaignWizard() {
                     <SelectContent>
                       {rulesData?.rules.map((rule) => (
                         <SelectItem key={rule.id} value={rule.id}>
-                          {rule.name} ({rule.daysSinceLastContact}+ days)
+                          {rule.name} {rule.criteria.min_days_inactive ? `(${rule.criteria.min_days_inactive}+ days)` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>

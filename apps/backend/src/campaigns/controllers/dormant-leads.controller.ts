@@ -10,7 +10,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
-import { AccountId } from '../../common/decorators/account.decorator';
+import { AccountId, PortalId } from '../../common/decorators/account.decorator';
 import { Response } from 'express';
 import { ScannerService, HubSpotContact, ScanResult } from '../services/scanner.service';
 import {
@@ -101,7 +101,7 @@ export class DormantLeadsController {
   @Get()
   async getDormantLeads(
     @AccountId() accountId: string,
-    @Query('portalId') portalId: number,
+    @PortalId() portalId: number,
     @Query() query: ListDormantLeadsQuery,
   ): Promise<PaginatedResponse<PrioritizedContact>> {
     const { ruleId, sortBy = 'dormancyScore', sortOrder = 'desc', page = 1, limit = 20 } = query;
@@ -164,7 +164,7 @@ export class DormantLeadsController {
   @Get(':contactId')
   async getDormantLeadDetails(
     @AccountId() accountId: string,
-    @Query('portalId') portalId: number,
+    @PortalId() portalId: number,
     @Param('contactId') contactId: string,
   ): Promise<ContactDetailsResponse> {
     // Scan to find the contact
@@ -194,7 +194,7 @@ export class DormantLeadsController {
   @Get('report/:ruleId')
   async getDormancyReport(
     @AccountId() accountId: string,
-    @Query('portalId') portalId: number,
+    @PortalId() portalId: number,
     @Param('ruleId') ruleId: string,
   ): Promise<DormancyReport> {
     const rule = await this.rulesService.findOne(accountId, ruleId);
@@ -213,7 +213,7 @@ export class DormantLeadsController {
   @Post('campaign')
   async createCampaignFromDormantLeads(
     @AccountId() accountId: string,
-    @Query('portalId') portalId: number,
+    @PortalId() portalId: number,
     @Body() dto: CreateCampaignDto,
   ): Promise<CampaignCreationResult> {
     const { contactIds, name, deduplicate = false } = dto;
@@ -259,7 +259,7 @@ export class DormantLeadsController {
   @Get('export/csv')
   async exportDormantLeads(
     @AccountId() accountId: string,
-    @Query('portalId') portalId: number,
+    @PortalId() portalId: number,
     @Query() query: ListDormantLeadsQuery,
     @Res() res: Response,
   ): Promise<void> {
@@ -326,7 +326,7 @@ export class DormantLeadsController {
   @Post('bulk-select')
   async bulkSelectDormantLeads(
     @AccountId() accountId: string,
-    @Query('portalId') portalId: number,
+    @PortalId() portalId: number,
     @Body() dto: BulkSelectDto,
   ): Promise<BulkSelectResponse> {
     const { minDormancyScore = 0, minLeadScore = 0, minDealValue = 0, maxContacts, ruleId } = dto;

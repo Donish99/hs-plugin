@@ -66,6 +66,29 @@ export interface CampaignsListParams {
   channel?: CampaignChannel;
 }
 
+export type OutreachStatus = 'pending' | 'approved' | 'sent' | 'delivered' | 'opened' | 'clicked' | 'replied' | 'bounced' | 'failed';
+
+export interface OutreachRecord {
+  id: string;
+  campaignId: string;
+  hubspotContactId: number;
+  contactEmail?: string;
+  contactName?: string;
+  companyName?: string;
+  channel: 'email' | 'sms';
+  subject?: string;
+  bodyText?: string;
+  bodyHtml?: string;
+  status: OutreachStatus;
+  scheduledAt?: string;
+  sentAt?: string;
+  openedAt?: string;
+  clickedAt?: string;
+  repliedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CampaignsListResponse {
   campaigns: Campaign[];
   total: number;
@@ -191,6 +214,41 @@ export const campaignsApi = {
       byStatus: Record<CampaignStatus, number>;
       activeCount: number;
     }>(withAccountId('/campaigns/stats'));
+    return response.data;
+  },
+
+  /**
+   * Get outreach records (sent messages) for a campaign
+   */
+  getOutreachRecords: async (campaignId: string, params?: {
+    page?: number;
+    limit?: number;
+    status?: OutreachStatus;
+  }): Promise<{
+    records: OutreachRecord[];
+    total: number;
+    page: number;
+    limit: number;
+  }> => {
+    const response = await apiClient.get<{
+      records: OutreachRecord[];
+      total: number;
+      page: number;
+      limit: number;
+    }>(
+      withAccountId(`/campaigns/${campaignId}/outreach`),
+      { params }
+    );
+    return response.data;
+  },
+
+  /**
+   * Get a single outreach record by ID
+   */
+  getOutreachRecord: async (campaignId: string, recordId: string): Promise<OutreachRecord> => {
+    const response = await apiClient.get<OutreachRecord>(
+      withAccountId(`/campaigns/${campaignId}/outreach/${recordId}`)
+    );
     return response.data;
   },
 };

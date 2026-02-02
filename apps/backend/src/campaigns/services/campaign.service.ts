@@ -263,6 +263,59 @@ export class CampaignService {
   }
 
   /**
+   * Start a campaign (transition from DRAFT to RUNNING)
+   */
+  async startCampaign(campaignId: string): Promise<Campaign | null> {
+    const campaign = await this.campaignRepository.findOne({
+      where: { id: campaignId },
+    });
+
+    if (!campaign) {
+      return null;
+    }
+
+    if (campaign.status === CampaignStatus.RUNNING) {
+      return campaign;
+    }
+
+    if (!campaign.canTransitionTo(CampaignStatus.RUNNING)) {
+      throw new BadRequestException(
+        `Cannot start campaign with status ${campaign.status}`,
+      );
+    }
+
+    campaign.status = CampaignStatus.RUNNING;
+    campaign.startedAt = new Date();
+    return this.campaignRepository.save(campaign);
+  }
+
+  /**
+   * Resume a paused campaign
+   */
+  async resumeCampaign(campaignId: string): Promise<Campaign | null> {
+    const campaign = await this.campaignRepository.findOne({
+      where: { id: campaignId },
+    });
+
+    if (!campaign) {
+      return null;
+    }
+
+    if (campaign.status === CampaignStatus.RUNNING) {
+      return campaign;
+    }
+
+    if (campaign.status !== CampaignStatus.PAUSED) {
+      throw new BadRequestException(
+        `Cannot resume campaign with status ${campaign.status}. Only paused campaigns can be resumed.`,
+      );
+    }
+
+    campaign.status = CampaignStatus.RUNNING;
+    return this.campaignRepository.save(campaign);
+  }
+
+  /**
    * Pause a campaign
    */
   async pauseCampaign(campaignId: string): Promise<Campaign | null> {
@@ -354,6 +407,29 @@ export class CampaignService {
     }
 
     return contacts;
+  }
+
+  /**
+   * Delete a campaign and its associated outreach records
+   */
+  async deleteCampaign(accountId: string, campaignId: string): Promise<boolean> {
+    const campaign = await this.campaignRepository.findOne({
+      where: { id: campaignId, accountId },
+    });
+
+    if (!campaign) {
+      return false;
+    }
+
+    // Delete associated outreach records first
+    await this.outreachRepository.delete({ campaignId, accountId });
+
+    // Delete the campaign
+    await this.campaignRepository.delete({ id: campaignId, accountId });
+
+    this.logger.log(`Deleted campaign ${campaignId} and its outreach records`);
+
+    return true;
   }
 
   /**

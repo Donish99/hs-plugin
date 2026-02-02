@@ -46,7 +46,8 @@ export function useTriggerScan() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: leadsApi.triggerScan,
+    mutationFn: (options?: { ruleId?: string; forceRefresh?: boolean }) =>
+      leadsApi.triggerScan(options),
     onSuccess: () => {
       // Invalidate after a delay to allow scan to process
       setTimeout(() => {

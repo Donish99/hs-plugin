@@ -135,16 +135,44 @@ export interface BenchmarkComparison {
   conversionRate: { yours: number; industry: number; percentile: number };
 }
 
+// Backend engagement metrics shape (different field names than frontend)
+interface BackendEngagementMetrics {
+  sent?: number;
+  delivered?: number;
+  bounced?: number;
+  opened?: number;
+  clicked?: number;
+  replied?: number;
+  positiveResponses?: number;
+  meetingsScheduled?: number;
+  openRate?: number;
+  clickRate?: number;
+  replyRate?: number;
+  deliveryRate?: number;
+  bounceRate?: number;
+}
+
 export const analyticsApi = {
   /**
    * Get overview metrics
    */
   getOverview: async (params?: AnalyticsParams): Promise<OverviewMetrics> => {
-    const response = await apiClient.get<{ engagement: OverviewMetrics }>(
+    const response = await apiClient.get<{ engagement: BackendEngagementMetrics }>(
       withAccountIdV1('/analytics/overview'),
       { params }
     );
-    return response.data.engagement;
+    const engagement = response.data?.engagement || {};
+    // Map backend field names to frontend expected names
+    return {
+      totalSent: engagement.sent ?? 0,
+      totalOpens: engagement.opened ?? 0,
+      totalClicks: engagement.clicked ?? 0,
+      totalReplies: engagement.replied ?? 0,
+      openRate: engagement.openRate ?? 0,
+      clickRate: engagement.clickRate ?? 0,
+      replyRate: engagement.replyRate ?? 0,
+      conversionRate: 0, // Not tracked in backend yet
+    };
   },
 
   /**
@@ -165,20 +193,21 @@ export const analyticsApi = {
    */
   getByChannel: async (params?: AnalyticsParams): Promise<ChannelMetrics[]> => {
     // Channel breakdown is part of campaign metrics
-    const response = await apiClient.get<{ engagement: OverviewMetrics }>(
+    const response = await apiClient.get<{ engagement: BackendEngagementMetrics }>(
       withAccountIdV1('/analytics/overview'),
       { params }
     );
+    const engagement = response.data?.engagement || {};
     // Return mock channel breakdown based on overview
     return [
       {
         channel: 'email',
-        sent: response.data.engagement.totalSent,
-        delivered: response.data.engagement.totalSent,
-        opens: response.data.engagement.totalOpens,
-        clicks: response.data.engagement.totalClicks,
-        replies: response.data.engagement.totalReplies,
-        bounces: 0,
+        sent: engagement.sent ?? 0,
+        delivered: engagement.delivered ?? engagement.sent ?? 0,
+        opens: engagement.opened ?? 0,
+        clicks: engagement.clicked ?? 0,
+        replies: engagement.replied ?? 0,
+        bounces: engagement.bounced ?? 0,
         unsubscribes: 0,
       },
     ];

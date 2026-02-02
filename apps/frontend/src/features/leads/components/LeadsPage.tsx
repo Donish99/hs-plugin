@@ -52,6 +52,21 @@ export function LeadsPage() {
   const bulkSelect = useBulkSelectLeads();
   const createCampaign = useCreateCampaignFromLeads();
 
+  // Client-side search filtering (backend doesn't support search yet)
+  const filteredLeads = useMemo(() => {
+    const leads = data?.leads || [];
+    if (!filters.search?.trim()) {
+      return leads;
+    }
+    const searchLower = filters.search.toLowerCase();
+    return leads.filter((lead) => {
+      const name = [lead.firstName, lead.lastName].filter(Boolean).join(' ').toLowerCase();
+      const email = (lead.email || '').toLowerCase();
+      const company = (lead.company || '').toLowerCase();
+      return name.includes(searchLower) || email.includes(searchLower) || company.includes(searchLower);
+    });
+  }, [data?.leads, filters.search]);
+
   const columns: Column<DormantLead>[] = useMemo(
     () => [
       {
@@ -81,7 +96,7 @@ export function LeadsPage() {
           <Badge
             variant={lead.dormancyScore >= 80 ? 'destructive' : lead.dormancyScore >= 50 ? 'warning' : 'secondary'}
           >
-            {lead.dormancyScore}
+            {Math.round(lead.dormancyScore)}
           </Badge>
         ),
       },
@@ -137,7 +152,7 @@ export function LeadsPage() {
         Name: [lead.firstName, lead.lastName].filter(Boolean).join(' '),
         Email: lead.email,
         Company: lead.company || '',
-        'Dormancy Score': lead.dormancyScore,
+        'Dormancy Score': Math.round(lead.dormancyScore),
         'Days Dormant': lead.daysDormant,
         'Last Contact': lead.lastContactDate || '',
         'Lifecycle Stage': lead.lifecycleStage || '',
@@ -273,7 +288,7 @@ export function LeadsPage() {
 
       <DataTable
         columns={columns}
-        data={data?.leads || []}
+        data={filteredLeads}
         keyExtractor={(lead) => lead.id}
         isLoading={isLoading}
         emptyTitle="No dormant leads found"

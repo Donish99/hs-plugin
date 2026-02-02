@@ -83,20 +83,32 @@ export function SettingsPage() {
   // Load settings
   useEffect(() => {
     if (settings) {
-      setTimezone(settings.general.timezone);
-      setBusinessHoursStart(settings.general.businessHoursStart);
-      setBusinessHoursEnd(settings.general.businessHoursEnd);
-      setDailyEmailLimit(settings.sendingLimits.dailyEmailLimit);
-      setDailySmsLimit(settings.sendingLimits.dailySmsLimit);
-      setMonthlyEmailLimit(settings.sendingLimits.monthlyEmailLimit);
-      setMonthlySmsLimit(settings.sendingLimits.monthlySmsLimit);
-      setDefaultTone(settings.ai.defaultTone);
-      setAutoApprove(settings.ai.autoApprove);
-      setMaxTokens(settings.ai.maxTokensPerMessage);
-      setEmailNotifications(settings.notifications.emailNotifications);
-      setNotifyOnReplies(settings.notifications.notifyOnReplies);
-      setNotifyOnErrors(settings.notifications.notifyOnErrors);
-      setDailyDigest(settings.notifications.dailyDigest);
+      // General settings
+      if (settings.general) {
+        setTimezone(settings.general.timezone ?? 'America/New_York');
+        setBusinessHoursStart(settings.general.businessHoursStart ?? '09:00');
+        setBusinessHoursEnd(settings.general.businessHoursEnd ?? '17:00');
+      }
+      // Sending limits
+      if (settings.sendingLimits) {
+        setDailyEmailLimit(settings.sendingLimits.dailyEmailLimit ?? 100);
+        setDailySmsLimit(settings.sendingLimits.dailySmsLimit ?? 50);
+        setMonthlyEmailLimit(settings.sendingLimits.monthlyEmailLimit ?? 3000);
+        setMonthlySmsLimit(settings.sendingLimits.monthlySmsLimit ?? 1500);
+      }
+      // AI settings
+      if (settings.ai) {
+        setDefaultTone(settings.ai.defaultTone ?? 'professional');
+        setAutoApprove(settings.ai.autoApprove ?? false);
+        setMaxTokens(settings.ai.maxTokensPerMessage ?? 500);
+      }
+      // Notification settings
+      if (settings.notifications) {
+        setEmailNotifications(settings.notifications.emailNotifications ?? true);
+        setNotifyOnReplies(settings.notifications.notifyOnReplies ?? true);
+        setNotifyOnErrors(settings.notifications.notifyOnErrors ?? true);
+        setDailyDigest(settings.notifications.dailyDigest ?? true);
+      }
     }
   }, [settings]);
 
@@ -250,17 +262,17 @@ export function SettingsPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>Email ({formatNumber(usage.currentMonth.emailsSent)} sent)</span>
-                    <span>{usage.percentUsed.email.toFixed(1)}%</span>
+                    <span>Email ({formatNumber(usage.currentMonth?.emailsSent)} sent)</span>
+                    <span>{(usage.percentUsed?.email ?? 0).toFixed(1)}%</span>
                   </div>
-                  <Progress value={usage.percentUsed.email} />
+                  <Progress value={usage.percentUsed?.email ?? 0} />
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>SMS ({formatNumber(usage.currentMonth.smsSent)} sent)</span>
-                    <span>{usage.percentUsed.sms.toFixed(1)}%</span>
+                    <span>SMS ({formatNumber(usage.currentMonth?.smsSent)} sent)</span>
+                    <span>{(usage.percentUsed?.sms ?? 0).toFixed(1)}%</span>
                   </div>
-                  <Progress value={usage.percentUsed.sms} />
+                  <Progress value={usage.percentUsed?.sms ?? 0} />
                 </div>
               </CardContent>
             </Card>

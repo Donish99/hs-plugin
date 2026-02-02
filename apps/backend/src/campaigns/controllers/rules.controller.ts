@@ -61,10 +61,7 @@ export class RulesController {
    * Delete a dormancy rule
    */
   @Delete(':ruleId')
-  async delete(
-    @AccountId() accountId: string,
-    @Param('ruleId') ruleId: string,
-  ): Promise<void> {
+  async delete(@AccountId() accountId: string, @Param('ruleId') ruleId: string): Promise<void> {
     this.logger.log(`Deleting rule ${ruleId} for account ${accountId}`);
     return this.rulesService.delete(accountId, ruleId);
   }

@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 export interface HubspotFilter {
   propertyName: string;
   operator: string;
-  value: string;
+  value?: string;  // Optional for operators like NOT_HAS_PROPERTY
 }
 
 export interface HubspotFilterGroup {
@@ -53,46 +53,20 @@ export class QueryBuilderService {
 
   /**
    * Build HubSpot filter groups from dormancy criteria
+   *
+   * IMPORTANT: For date-based "dormancy" criteria, we need to match contacts that either:
+   * 1. Have a date value that is older than the threshold (LT filter)
+   * 2. Have never had that property set (NOT_HAS_PROPERTY filter)
+   *
+   * This requires OR logic, which in HubSpot means separate filter groups.
    */
   buildFiltersFromCriteria(criteria: DormancyCriteria): HubspotFilterGroup[] {
-    const filters: HubspotFilter[] = [];
-
-    // Time-based filters (all use LT = "less than" for dates in the past)
-    if (criteria.min_days_inactive !== undefined) {
-      filters.push({
-        propertyName: 'notes_last_contacted',
-        operator: 'LT',
-        value: this.getDateDaysAgo(criteria.min_days_inactive),
-      });
-    }
-
-    if (criteria.no_email_opens_days !== undefined) {
-      filters.push({
-        propertyName: 'hs_email_last_open_date',
-        operator: 'LT',
-        value: this.getDateDaysAgo(criteria.no_email_opens_days),
-      });
-    }
-
-    if (criteria.no_email_clicks_days !== undefined) {
-      filters.push({
-        propertyName: 'hs_email_last_click_date',
-        operator: 'LT',
-        value: this.getDateDaysAgo(criteria.no_email_clicks_days),
-      });
-    }
-
-    if (criteria.no_website_visits_days !== undefined) {
-      filters.push({
-        propertyName: 'hs_analytics_last_visit_timestamp',
-        operator: 'LT',
-        value: this.getDateDaysAgo(criteria.no_website_visits_days),
-      });
-    }
+    // Collect non-date filters that apply to ALL results (AND logic)
+    const commonFilters: HubspotFilter[] = [];
 
     // Lead score filter (GTE = "greater than or equal")
     if (criteria.min_lead_score !== undefined) {
-      filters.push({
+      commonFilters.push({
         propertyName: 'hubspotscore',
         operator: 'GTE',
         value: String(criteria.min_lead_score),
@@ -102,7 +76,7 @@ export class QueryBuilderService {
     // Exclusion tags - add NOT_CONTAINS_TOKEN for each tag
     if (criteria.exclude_tags && criteria.exclude_tags.length > 0) {
       for (const tag of criteria.exclude_tags) {
-        filters.push({
+        commonFilters.push({
           propertyName: 'hs_tag',
           operator: 'NOT_CONTAINS_TOKEN',
           value: tag,
@@ -110,10 +84,13 @@ export class QueryBuilderService {
       }
     }
 
+    // Build date-based dormancy filter groups
+    // Each date criterion creates filter groups that match EITHER old dates OR null values
+    const dateFilterGroups = this.buildDateFilterGroups(criteria, commonFilters);
+
     // Handle deal stages - they use OR logic between stages
-    // If deal stages specified, we need separate filter groups
     if (criteria.deal_stages && criteria.deal_stages.length > 0) {
-      if (filters.length === 0) {
+      if (dateFilterGroups.length === 0 && commonFilters.length === 0) {
         // Only deal stages, no other criteria
         return criteria.deal_stages.map((stage) => ({
           filters: [
@@ -126,26 +103,119 @@ export class QueryBuilderService {
         }));
       }
 
-      // Combine criteria filters with each deal stage (AND within group, OR between groups)
-      return criteria.deal_stages.map((stage) => ({
-        filters: [
-          ...filters,
-          {
-            propertyName: 'dealstage',
-            operator: 'EQ',
-            value: stage,
-          },
-        ],
-      }));
+      // Combine with deal stages
+      const baseGroups = dateFilterGroups.length > 0 ? dateFilterGroups : [{ filters: commonFilters }];
+      const result: HubspotFilterGroup[] = [];
+
+      for (const stage of criteria.deal_stages) {
+        for (const group of baseGroups) {
+          result.push({
+            filters: [
+              ...group.filters,
+              {
+                propertyName: 'dealstage',
+                operator: 'EQ',
+                value: stage,
+              },
+            ],
+          });
+        }
+      }
+      return result;
     }
 
-    // If no filters at all, return empty array
-    if (filters.length === 0) {
+    // Return date filter groups if we have them
+    if (dateFilterGroups.length > 0) {
+      return dateFilterGroups;
+    }
+
+    // If only common filters, return single group
+    if (commonFilters.length > 0) {
+      return [{ filters: commonFilters }];
+    }
+
+    // No filters at all - return empty
+    return [];
+  }
+
+  /**
+   * Build filter groups for date-based dormancy criteria
+   *
+   * For each date criterion, we need to match contacts where EITHER:
+   * - The date property is older than threshold (property < cutoff_date)
+   * - The date property has never been set (NOT_HAS_PROPERTY)
+   *
+   * This captures truly dormant contacts who may have never been contacted.
+   */
+  private buildDateFilterGroups(
+    criteria: DormancyCriteria,
+    commonFilters: HubspotFilter[],
+  ): HubspotFilterGroup[] {
+    // Define date criteria with their property names
+    const dateCriteria: Array<{ property: string; days: number | undefined }> = [
+      { property: 'notes_last_contacted', days: criteria.min_days_inactive },
+      { property: 'hs_email_last_open_date', days: criteria.no_email_opens_days },
+      { property: 'hs_email_last_click_date', days: criteria.no_email_clicks_days },
+      { property: 'hs_analytics_last_visit_timestamp', days: criteria.no_website_visits_days },
+    ];
+
+    // Filter to only active criteria
+    const activeDateCriteria = dateCriteria.filter((c) => c.days !== undefined);
+
+    if (activeDateCriteria.length === 0) {
       return [];
     }
 
-    // All other filters use AND logic (same filter group)
-    return [{ filters }];
+    // For simplicity, we'll use the primary criterion (min_days_inactive) with OR for null
+    // and AND the other criteria as additional filters
+    // This avoids exponential growth of filter groups
+
+    const primaryCriterion = activeDateCriteria[0];
+    const additionalCriteria = activeDateCriteria.slice(1);
+
+    // Build additional date filters (these will be ANDed)
+    const additionalDateFilters: HubspotFilter[] = additionalCriteria.map((c) => ({
+      propertyName: c.property,
+      operator: 'LT',
+      value: this.getDateDaysAgo(c.days!),
+    }));
+
+    const allCommonFilters = [...commonFilters, ...additionalDateFilters];
+
+    // Create two filter groups for the primary criterion:
+    // Group 1: Property has old value (LT)
+    // Group 2: Property doesn't exist (NOT_HAS_PROPERTY)
+    const filterGroups: HubspotFilterGroup[] = [
+      {
+        // Contacts with old last contact date
+        filters: [
+          ...allCommonFilters,
+          {
+            propertyName: primaryCriterion.property,
+            operator: 'LT',
+            value: this.getDateDaysAgo(primaryCriterion.days!),
+          },
+        ],
+      },
+      {
+        // Contacts who have never been contacted (null value)
+        filters: [
+          ...allCommonFilters,
+          {
+            propertyName: primaryCriterion.property,
+            operator: 'NOT_HAS_PROPERTY',
+            // No value field for NOT_HAS_PROPERTY operator
+          },
+        ],
+      },
+    ];
+
+    this.logger.debug(
+      `Built ${filterGroups.length} filter groups for dormancy criteria ` +
+      `(primary: ${primaryCriterion.property} < ${primaryCriterion.days} days)`,
+    );
+
+    return filterGroups;
   }
 
   /**

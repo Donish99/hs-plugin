@@ -64,9 +64,7 @@ export class WebhooksController {
       });
 
       if (!validationResult.valid) {
-        this.logger.warn(
-          `Webhook validation failed: ${validationResult.reason}`,
-        );
+        this.logger.warn(`Webhook validation failed: ${validationResult.reason}`);
         throw new HttpException(
           validationResult.reason || 'Invalid request',
           HttpStatus.UNAUTHORIZED,
@@ -83,9 +81,7 @@ export class WebhooksController {
       const queueResult = await this.webhooksService.queueEvents(uniqueEvents);
 
       const elapsed = Date.now() - startTime;
-      this.logger.log(
-        `Webhook processed in ${elapsed}ms: ${queueResult.queued} events queued`,
-      );
+      this.logger.log(`Webhook processed in ${elapsed}ms: ${queueResult.queued} events queued`);
 
       return {
         received: true,
@@ -96,14 +92,10 @@ export class WebhooksController {
         throw error;
       }
 
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Webhook processing failed: ${errorMessage}`);
 
-      throw new HttpException(
-        `Webhook processing failed: ${errorMessage}`,
-        HttpStatus.BAD_REQUEST,
-      );
+      throw new HttpException(`Webhook processing failed: ${errorMessage}`, HttpStatus.BAD_REQUEST);
     }
   }
 

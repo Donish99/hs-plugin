@@ -25,11 +25,13 @@ export function formatDateTime(date: Date | string): string {
   });
 }
 
-export function formatNumber(num: number): string {
+export function formatNumber(num: number | undefined | null): string {
+  if (num === undefined || num === null || isNaN(num)) return '0';
   return new Intl.NumberFormat('en-US').format(num);
 }
 
-export function formatPercent(num: number, decimals = 1): string {
+export function formatPercent(num: number | undefined | null, decimals = 1): string {
+  if (num === undefined || num === null || isNaN(num)) return '0%';
   return `${num.toFixed(decimals)}%`;
 }
 

@@ -14,18 +14,29 @@ describe('QueryBuilderService', () => {
   });
 
   describe('buildFiltersFromCriteria', () => {
-    it('should build filter for min_days_inactive', () => {
+    it('should build filter groups for min_days_inactive with NULL handling', () => {
       const criteria: DormancyCriteria = {
         min_days_inactive: 30,
       };
 
-      const filters = service.buildFiltersFromCriteria(criteria);
+      const filterGroups = service.buildFiltersFromCriteria(criteria);
 
-      expect(filters).toHaveLength(1);
-      expect(filters[0].filters).toContainEqual(
+      // Should create 2 filter groups: one with LT, one with NOT_HAS_PROPERTY
+      expect(filterGroups).toHaveLength(2);
+
+      // First group: contacts with old dates
+      expect(filterGroups[0].filters).toContainEqual(
         expect.objectContaining({
           propertyName: 'notes_last_contacted',
           operator: 'LT',
+        }),
+      );
+
+      // Second group: contacts never contacted (NULL)
+      expect(filterGroups[1].filters).toContainEqual(
+        expect.objectContaining({
+          propertyName: 'notes_last_contacted',
+          operator: 'NOT_HAS_PROPERTY',
         }),
       );
     });
@@ -35,9 +46,9 @@ describe('QueryBuilderService', () => {
         min_days_inactive: 30,
       };
 
-      const filters = service.buildFiltersFromCriteria(criteria);
-      const dateFilter = filters[0].filters.find(
-        (f: HubspotFilter) => f.propertyName === 'notes_last_contacted',
+      const filterGroups = service.buildFiltersFromCriteria(criteria);
+      const dateFilter = filterGroups[0].filters.find(
+        (f: HubspotFilter) => f.propertyName === 'notes_last_contacted' && f.operator === 'LT',
       );
 
       // Value should be a date string 30 days ago
@@ -48,14 +59,16 @@ describe('QueryBuilderService', () => {
       expect(dateFilter?.value).toBe(expectedDateStr);
     });
 
-    it('should build filter for no_email_opens_days', () => {
+    it('should build filter groups for no_email_opens_days with NULL handling', () => {
       const criteria: DormancyCriteria = {
         no_email_opens_days: 14,
       };
 
-      const filters = service.buildFiltersFromCriteria(criteria);
+      const filterGroups = service.buildFiltersFromCriteria(criteria);
 
-      expect(filters[0].filters).toContainEqual(
+      // Should have 2 groups for OR logic (LT or NOT_HAS_PROPERTY)
+      expect(filterGroups).toHaveLength(2);
+      expect(filterGroups[0].filters).toContainEqual(
         expect.objectContaining({
           propertyName: 'hs_email_last_open_date',
           operator: 'LT',
@@ -63,14 +76,15 @@ describe('QueryBuilderService', () => {
       );
     });
 
-    it('should build filter for no_email_clicks_days', () => {
+    it('should build filter groups for no_email_clicks_days with NULL handling', () => {
       const criteria: DormancyCriteria = {
         no_email_clicks_days: 21,
       };
 
-      const filters = service.buildFiltersFromCriteria(criteria);
+      const filterGroups = service.buildFiltersFromCriteria(criteria);
 
-      expect(filters[0].filters).toContainEqual(
+      expect(filterGroups).toHaveLength(2);
+      expect(filterGroups[0].filters).toContainEqual(
         expect.objectContaining({
           propertyName: 'hs_email_last_click_date',
           operator: 'LT',
@@ -78,14 +92,15 @@ describe('QueryBuilderService', () => {
       );
     });
 
-    it('should build filter for no_website_visits_days', () => {
+    it('should build filter groups for no_website_visits_days with NULL handling', () => {
       const criteria: DormancyCriteria = {
         no_website_visits_days: 60,
       };
 
-      const filters = service.buildFiltersFromCriteria(criteria);
+      const filterGroups = service.buildFiltersFromCriteria(criteria);
 
-      expect(filters[0].filters).toContainEqual(
+      expect(filterGroups).toHaveLength(2);
+      expect(filterGroups[0].filters).toContainEqual(
         expect.objectContaining({
           propertyName: 'hs_analytics_last_visit_timestamp',
           operator: 'LT',
@@ -93,14 +108,16 @@ describe('QueryBuilderService', () => {
       );
     });
 
-    it('should build filter for min_lead_score', () => {
+    it('should build filter for min_lead_score only (no NULL handling needed)', () => {
       const criteria: DormancyCriteria = {
         min_lead_score: 50,
       };
 
-      const filters = service.buildFiltersFromCriteria(criteria);
+      const filterGroups = service.buildFiltersFromCriteria(criteria);
 
-      expect(filters[0].filters).toContainEqual(
+      // Lead score doesn't need NULL handling, single group
+      expect(filterGroups).toHaveLength(1);
+      expect(filterGroups[0].filters).toContainEqual(
         expect.objectContaining({
           propertyName: 'hubspotscore',
           operator: 'GTE',
@@ -114,31 +131,43 @@ describe('QueryBuilderService', () => {
         deal_stages: ['qualifiedtobuy', 'presentationscheduled'],
       };
 
-      const filters = service.buildFiltersFromCriteria(criteria);
+      const filterGroups = service.buildFiltersFromCriteria(criteria);
 
       // Deal stages create OR filter groups (one per stage)
-      expect(filters.length).toBeGreaterThanOrEqual(1);
+      expect(filterGroups.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('should combine multiple criteria with AND logic', () => {
+    it('should combine date criteria with common filters', () => {
       const criteria: DormancyCriteria = {
         min_days_inactive: 30,
         no_email_opens_days: 14,
         min_lead_score: 50,
       };
 
-      const filters = service.buildFiltersFromCriteria(criteria);
+      const filterGroups = service.buildFiltersFromCriteria(criteria);
 
-      // All conditions should be in the same filter group (AND)
-      expect(filters[0].filters.length).toBe(3);
+      // Should have 2 groups (for primary date criterion NULL handling)
+      // Each group should have: lead_score filter + secondary date filter + primary date filter
+      expect(filterGroups).toHaveLength(2);
+
+      // Both groups should have the lead score filter
+      for (const group of filterGroups) {
+        expect(group.filters).toContainEqual(
+          expect.objectContaining({
+            propertyName: 'hubspotscore',
+            operator: 'GTE',
+            value: '50',
+          }),
+        );
+      }
     });
 
     it('should handle empty criteria', () => {
       const criteria: DormancyCriteria = {};
 
-      const filters = service.buildFiltersFromCriteria(criteria);
+      const filterGroups = service.buildFiltersFromCriteria(criteria);
 
-      expect(filters).toHaveLength(0);
+      expect(filterGroups).toHaveLength(0);
     });
   });
 
@@ -214,11 +243,14 @@ describe('QueryBuilderService', () => {
         min_days_inactive: 1,
       };
 
-      const filters = service.buildFiltersFromCriteria(criteria);
-      const dateFilter = filters[0].filters[0];
+      const filterGroups = service.buildFiltersFromCriteria(criteria);
+      // First group has the LT filter
+      const dateFilter = filterGroups[0].filters.find(
+        (f: HubspotFilter) => f.operator === 'LT',
+      );
 
       // Should be a valid ISO date string (YYYY-MM-DD)
-      expect(dateFilter.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(dateFilter?.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     });
 
     it('should handle large day values', () => {
@@ -226,14 +258,16 @@ describe('QueryBuilderService', () => {
         min_days_inactive: 365,
       };
 
-      const filters = service.buildFiltersFromCriteria(criteria);
-      const dateFilter = filters[0].filters[0];
+      const filterGroups = service.buildFiltersFromCriteria(criteria);
+      const dateFilter = filterGroups[0].filters.find(
+        (f: HubspotFilter) => f.operator === 'LT',
+      );
 
       const expectedDate = new Date();
       expectedDate.setDate(expectedDate.getDate() - 365);
       const expectedDateStr = expectedDate.toISOString().split('T')[0];
 
-      expect(dateFilter.value).toBe(expectedDateStr);
+      expect(dateFilter?.value).toBe(expectedDateStr);
     });
   });
 

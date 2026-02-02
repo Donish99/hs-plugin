@@ -49,6 +49,66 @@ export interface ActivityListResponse {
   limit: number;
 }
 
+/**
+ * Map backend event types to frontend activity types
+ */
+function mapEventTypeToActivityType(eventType: string): ActivityType {
+  const mapping: Record<string, ActivityType> = {
+    email_sent: 'message_sent',
+    email_delivered: 'message_delivered',
+    email_opened: 'message_opened',
+    email_clicked: 'message_clicked',
+    email_replied: 'message_replied',
+    email_bounced: 'message_bounced',
+    sms_sent: 'message_sent',
+    sms_delivered: 'message_delivered',
+    sms_replied: 'message_replied',
+    campaign_started: 'campaign_started',
+    campaign_completed: 'campaign_completed',
+    contact_reactivated: 'lead_detected',
+  };
+  return mapping[eventType] || 'message_sent';
+}
+
+/**
+ * Format activity title from event type
+ */
+function formatActivityTitle(eventType: string, contactName?: string): string {
+  const titles: Record<string, string> = {
+    email_sent: 'Email sent',
+    email_delivered: 'Email delivered',
+    email_opened: 'Email opened',
+    email_clicked: 'Link clicked',
+    email_replied: 'Reply received',
+    email_bounced: 'Email bounced',
+    sms_sent: 'SMS sent',
+    sms_delivered: 'SMS delivered',
+    sms_replied: 'SMS reply received',
+    campaign_started: 'Campaign started',
+    campaign_completed: 'Campaign completed',
+    contact_reactivated: 'Lead reactivated',
+  };
+  const title = titles[eventType] || 'Activity';
+  return contactName ? `${title} - ${contactName}` : title;
+}
+
+/**
+ * Format activity description from entry data
+ */
+function formatActivityDescription(entry: {
+  contactEmail?: string;
+  campaignName?: string;
+  subject?: string;
+  companyName?: string;
+}): string {
+  const parts: string[] = [];
+  if (entry.subject) parts.push(entry.subject);
+  if (entry.contactEmail) parts.push(entry.contactEmail);
+  if (entry.campaignName) parts.push(`Campaign: ${entry.campaignName}`);
+  if (entry.companyName) parts.push(entry.companyName);
+  return parts.join(' • ') || 'No details available';
+}
+
 export const activityApi = {
   /**
    * Get paginated list of activities
@@ -57,7 +117,18 @@ export const activityApi = {
     // Support both limit and pageSize parameters
     const pageSize = params?.pageSize ?? params?.limit ?? 20;
     const response = await apiClient.get<{
-      activities: ActivityItem[];
+      entries: Array<{
+        id: string;
+        eventType: string;
+        contactName?: string;
+        contactEmail?: string;
+        companyName?: string;
+        campaignId?: string;
+        campaignName?: string;
+        subject?: string;
+        createdAt: string;
+        metadata?: Record<string, unknown>;
+      }>;
       total: number;
       page: number;
       pageSize: number;
@@ -65,8 +136,23 @@ export const activityApi = {
       withAccountIdV1('/analytics/activity'),
       { params: { ...params, pageSize } }
     );
+
+    // Map backend response to frontend format
+    const activities: ActivityItem[] = (response.data.entries || []).map(entry => ({
+      id: entry.id,
+      type: mapEventTypeToActivityType(entry.eventType),
+      title: formatActivityTitle(entry.eventType, entry.contactName),
+      description: formatActivityDescription(entry),
+      metadata: entry.metadata,
+      contactId: undefined,
+      contactEmail: entry.contactEmail,
+      campaignId: entry.campaignId,
+      campaignName: entry.campaignName,
+      createdAt: entry.createdAt,
+    }));
+
     return {
-      activities: response.data.activities,
+      activities,
       total: response.data.total,
       page: response.data.page,
       limit: response.data.pageSize,

@@ -44,9 +44,6 @@ function RuleCard({
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
         <div className="space-y-1">
           <CardTitle className="text-base font-medium">{rule.name}</CardTitle>
-          {rule.description && (
-            <p className="text-sm text-muted-foreground">{rule.description}</p>
-          )}
         </div>
         <div className="flex items-center gap-2">
           <Switch checked={rule.isActive} onCheckedChange={() => onToggle()} />
@@ -71,19 +68,15 @@ function RuleCard({
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          <div className="flex items-center gap-1">
-            <span className="text-muted-foreground">Days dormant:</span>
-            <Badge variant="secondary">{rule.daysSinceLastContact}+</Badge>
-          </div>
-          {rule.criteria.length > 0 && (
+          {rule.criteria.min_days_inactive && (
             <div className="flex items-center gap-1">
-              <span className="text-muted-foreground">Criteria:</span>
-              <Badge variant="outline">{rule.criteria.length}</Badge>
+              <span className="text-muted-foreground">Days inactive:</span>
+              <Badge variant="secondary">{rule.criteria.min_days_inactive}+</Badge>
             </div>
           )}
           <div className="flex items-center gap-1">
-            <span className="text-muted-foreground">Priority:</span>
-            <Badge variant="outline">{rule.priority}</Badge>
+            <span className="text-muted-foreground">Action:</span>
+            <Badge variant="outline" className="capitalize">{rule.actionType}</Badge>
           </div>
           <Badge variant={rule.isActive ? 'success' : 'secondary'}>
             {rule.isActive ? 'Active' : 'Inactive'}

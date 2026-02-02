@@ -4,7 +4,9 @@ import {
   useStartCampaign,
   usePauseCampaign,
   useResumeCampaign,
+  useCampaignOutreach,
 } from '@/api/hooks/useCampaigns';
+import { OutreachRecord } from '@/api/endpoints/campaigns';
 import { useCampaignMetrics } from '@/api/hooks/useAnalytics';
 import { PageHeader } from '@/components/common/PageHeader';
 import { TrendChart } from '@/components/charts/TrendChart';
@@ -16,10 +18,17 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable, Column } from '@/components/common/DataTable';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDateTime, formatNumber, formatPercent } from '@/lib/utils';
-import { ArrowLeft, Play, Pause, RefreshCw, Mail, MessageSquare, Eye, MousePointerClick, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Play, Pause, RefreshCw, Mail, MessageSquare, Eye, MousePointerClick, MessageCircle, Users, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 export function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,9 +37,12 @@ export function CampaignDetailPage() {
 
   const { data: campaign, isLoading } = useCampaign(id || '');
   const { data: campaignAnalytics, isLoading: isAnalyticsLoading } = useCampaignMetrics(id || '');
+  const { data: outreachData, isLoading: isOutreachLoading } = useCampaignOutreach(id || '');
   const startCampaign = useStartCampaign();
   const pauseCampaign = usePauseCampaign();
   const resumeCampaign = useResumeCampaign();
+
+  const [selectedMessage, setSelectedMessage] = useState<OutreachRecord | null>(null);
 
   type Lead = { id: string; email: string; name: string; status: 'pending' | 'sent' | 'failed' | 'delivered' | 'opened' | 'clicked' | 'replied'; sentAt?: string };
 
@@ -68,6 +80,85 @@ export function CampaignDetailPage() {
         key: 'sentAt' as const,
         header: 'Sent',
         render: (lead: Lead) => (lead.sentAt ? formatDateTime(lead.sentAt) : '-'),
+      },
+    ],
+    []
+  );
+
+  const messageColumns: Column<OutreachRecord>[] = useMemo(
+    () => [
+      {
+        key: 'contactName' as const,
+        header: 'Recipient',
+        render: (record: OutreachRecord) => (
+          <div>
+            <p className="font-medium">{record.contactName || 'Unknown'}</p>
+            <p className="text-xs text-muted-foreground">{record.contactEmail}</p>
+          </div>
+        ),
+      },
+      {
+        key: 'channel' as const,
+        header: 'Channel',
+        render: (record: OutreachRecord) => (
+          <div className="flex items-center gap-2">
+            {record.channel === 'email' ? (
+              <Mail className="h-4 w-4" />
+            ) : (
+              <MessageSquare className="h-4 w-4" />
+            )}
+            <span className="capitalize">{record.channel}</span>
+          </div>
+        ),
+      },
+      {
+        key: 'subject' as const,
+        header: 'Subject',
+        render: (record: OutreachRecord) => (
+          <p className="max-w-[200px] truncate text-sm">
+            {record.subject || '(No subject)'}
+          </p>
+        ),
+      },
+      {
+        key: 'status' as const,
+        header: 'Status',
+        render: (record: OutreachRecord) => (
+          <Badge
+            variant={
+              record.status === 'replied'
+                ? 'success'
+                : record.status === 'failed' || record.status === 'bounced'
+                ? 'destructive'
+                : record.status === 'opened' || record.status === 'clicked'
+                ? 'default'
+                : 'secondary'
+            }
+            className="capitalize"
+          >
+            {record.status}
+          </Badge>
+        ),
+      },
+      {
+        key: 'sentAt' as const,
+        header: 'Sent',
+        render: (record: OutreachRecord) =>
+          record.sentAt ? formatDateTime(record.sentAt) : '-',
+      },
+      {
+        key: 'id' as const,
+        header: 'Actions',
+        render: (record: OutreachRecord) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedMessage(record)}
+          >
+            <FileText className="h-4 w-4 mr-1" />
+            View
+          </Button>
+        ),
       },
     ],
     []
@@ -257,7 +348,12 @@ export function CampaignDetailPage() {
       {/* Details and Leads */}
       <Tabs defaultValue="leads">
         <TabsList>
-          <TabsTrigger value="leads">Leads ({campaign.leads?.length || 0})</TabsTrigger>
+          <TabsTrigger value="leads">
+            Leads ({campaign.leads?.length || campaign.targetCount || 0})
+          </TabsTrigger>
+          <TabsTrigger value="messages">
+            Messages ({outreachData?.total || 0})
+          </TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="details">Details</TabsTrigger>
         </TabsList>
@@ -267,12 +363,58 @@ export function CampaignDetailPage() {
               <CardTitle>Campaign Leads</CardTitle>
             </CardHeader>
             <CardContent>
-              <DataTable
-                columns={leadColumns}
-                data={campaign.leads || []}
-                keyExtractor={(lead) => lead.id}
-                emptyTitle="No leads in this campaign"
-              />
+              {campaign.leads && campaign.leads.length > 0 ? (
+                <DataTable
+                  columns={leadColumns}
+                  data={campaign.leads}
+                  keyExtractor={(lead) => lead.id}
+                  emptyTitle="No leads in this campaign"
+                />
+              ) : campaign.targetCount > 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Users className="h-12 w-12 text-muted-foreground mb-3" />
+                  <p className="text-lg font-medium">{formatNumber(campaign.targetCount)} leads targeted</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Lead details will be available once messages are generated
+                  </p>
+                </div>
+              ) : (
+                <DataTable
+                  columns={leadColumns}
+                  data={[]}
+                  keyExtractor={(lead) => lead.id}
+                  emptyTitle="No leads in this campaign"
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="messages" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Sent Messages</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isOutreachLoading ? (
+                <div className="flex justify-center py-8">
+                  <LoadingSpinner />
+                </div>
+              ) : outreachData?.records && outreachData.records.length > 0 ? (
+                <DataTable
+                  columns={messageColumns}
+                  data={outreachData.records}
+                  keyExtractor={(record) => record.id}
+                  emptyTitle="No messages sent yet"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Mail className="h-12 w-12 text-muted-foreground mb-3" />
+                  <p className="text-lg font-medium">No messages sent yet</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Messages will appear here once the campaign starts sending
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -375,6 +517,112 @@ export function CampaignDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Message Detail Dialog */}
+      <Dialog open={!!selectedMessage} onOpenChange={() => setSelectedMessage(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedMessage?.channel === 'email' ? (
+                <Mail className="h-5 w-5" />
+              ) : (
+                <MessageSquare className="h-5 w-5" />
+              )}
+              Message Details
+            </DialogTitle>
+          </DialogHeader>
+          {selectedMessage && (
+            <ScrollArea className="max-h-[60vh]">
+              <div className="space-y-4">
+                {/* Recipient Info */}
+                <div className="grid gap-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground w-20">To:</span>
+                    <span className="font-medium">
+                      {selectedMessage.contactName || 'Unknown'}{' '}
+                      {selectedMessage.contactEmail && `<${selectedMessage.contactEmail}>`}
+                    </span>
+                  </div>
+                  {selectedMessage.companyName && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground w-20">Company:</span>
+                      <span>{selectedMessage.companyName}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground w-20">Status:</span>
+                    <Badge
+                      variant={
+                        selectedMessage.status === 'replied'
+                          ? 'success'
+                          : selectedMessage.status === 'failed' || selectedMessage.status === 'bounced'
+                          ? 'destructive'
+                          : 'secondary'
+                      }
+                      className="capitalize"
+                    >
+                      {selectedMessage.status}
+                    </Badge>
+                  </div>
+                  {selectedMessage.sentAt && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground w-20">Sent:</span>
+                      <span>{formatDateTime(selectedMessage.sentAt)}</span>
+                    </div>
+                  )}
+                  {selectedMessage.openedAt && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground w-20">Opened:</span>
+                      <span>{formatDateTime(selectedMessage.openedAt)}</span>
+                    </div>
+                  )}
+                  {selectedMessage.clickedAt && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground w-20">Clicked:</span>
+                      <span>{formatDateTime(selectedMessage.clickedAt)}</span>
+                    </div>
+                  )}
+                  {selectedMessage.repliedAt && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground w-20">Replied:</span>
+                      <span>{formatDateTime(selectedMessage.repliedAt)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Subject (for emails) */}
+                {selectedMessage.channel === 'email' && selectedMessage.subject && (
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Subject</h4>
+                    <p className="font-medium">{selectedMessage.subject}</p>
+                  </div>
+                )}
+
+                {/* Message Body */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                    {selectedMessage.channel === 'email' ? 'Email Body' : 'Message'}
+                  </h4>
+                  {selectedMessage.bodyHtml ? (
+                    <div
+                      className="prose prose-sm max-w-none rounded-lg border bg-muted/30 p-4"
+                      dangerouslySetInnerHTML={{ __html: selectedMessage.bodyHtml }}
+                    />
+                  ) : selectedMessage.bodyText ? (
+                    <div className="rounded-lg border bg-muted/30 p-4 whitespace-pre-wrap text-sm">
+                      {selectedMessage.bodyText}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">
+                      Message content not available
+                    </p>
+                  )}
+                </div>
+              </div>
+            </ScrollArea>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

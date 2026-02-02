@@ -11,6 +11,7 @@ import { CampaignService } from './services/campaign.service';
 import { ActionsService } from './services/actions.service';
 import { RulesController } from './controllers/rules.controller';
 import { DormantLeadsController } from './controllers/dormant-leads.controller';
+import { CampaignsController } from './controllers/campaigns.controller';
 import { HubspotModule } from '../hubspot/hubspot.module';
 import { OutreachModule } from '../outreach/outreach.module';
 
@@ -23,7 +24,7 @@ import { OutreachModule } from '../outreach/outreach.module';
     HubspotModule,
     forwardRef(() => OutreachModule),
   ],
-  controllers: [RulesController, DormantLeadsController],
+  controllers: [RulesController, DormantLeadsController, CampaignsController],
   providers: [
     DormancyRulesService,
     QueryBuilderService,

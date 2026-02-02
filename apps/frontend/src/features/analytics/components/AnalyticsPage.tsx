@@ -213,7 +213,7 @@ export function AnalyticsPage() {
                   </div>
                   <div className="rounded-lg border p-4 text-center">
                     <TrendingUp className="mx-auto h-6 w-6 text-blue-600" />
-                    <p className="mt-2 text-2xl font-bold text-blue-600">{roi.roi.toFixed(1)}x</p>
+                    <p className="mt-2 text-2xl font-bold text-blue-600">{(roi.roi ?? 0).toFixed(1)}x</p>
                     <p className="text-xs text-muted-foreground">ROI</p>
                   </div>
                 </div>
@@ -463,28 +463,32 @@ export function AnalyticsPage() {
             ) : benchmarks ? (
               <div className="space-y-4">
                 {(['openRate', 'clickRate', 'replyRate', 'conversionRate'] as const).map((metric) => {
-                  const comparison = benchmarks.comparison[metric];
-                  const isAbove = comparison.yours >= comparison.industry;
+                  const comparison = benchmarks.comparison?.[metric];
+                  if (!comparison) return null;
+                  const yours = comparison.yours ?? 0;
+                  const industry = comparison.industry ?? 0;
+                  const percentile = comparison.percentile ?? 0;
+                  const isAbove = yours >= industry;
                   return (
                     <div key={metric} className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="capitalize">{metric.replace(/Rate$/, ' Rate')}</span>
                         <span className={isAbove ? 'text-green-600' : 'text-orange-600'}>
-                          {isAbove ? '+' : ''}{(comparison.yours - comparison.industry).toFixed(1)}% vs industry
+                          {isAbove ? '+' : ''}{(yours - industry).toFixed(1)}% vs industry
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Progress
-                          value={Math.min(comparison.percentile, 100)}
+                          value={Math.min(percentile, 100)}
                           className="flex-1 h-2"
                         />
                         <span className="text-xs text-muted-foreground w-12 text-right">
-                          {comparison.percentile}th
+                          {percentile}th
                         </span>
                       </div>
                       <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Yours: {formatPercent(comparison.yours)}</span>
-                        <span>Industry: {formatPercent(comparison.industry)}</span>
+                        <span>Yours: {formatPercent(yours)}</span>
+                        <span>Industry: {formatPercent(industry)}</span>
                       </div>
                     </div>
                   );

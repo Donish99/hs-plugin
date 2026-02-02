@@ -5,6 +5,7 @@ import {
   CampaignsListParams,
   CreateCampaignInput,
   UpdateCampaignInput,
+  OutreachStatus,
 } from '../endpoints/campaigns';
 
 export const campaignsKeys = {
@@ -14,6 +15,10 @@ export const campaignsKeys = {
   details: () => [...campaignsKeys.all, 'detail'] as const,
   detail: (id: string) => [...campaignsKeys.details(), id] as const,
   stats: () => [...campaignsKeys.all, 'stats'] as const,
+  outreach: (campaignId: string, params?: { page?: number; limit?: number; status?: OutreachStatus }) =>
+    [...campaignsKeys.detail(campaignId), 'outreach', params] as const,
+  outreachRecord: (campaignId: string, recordId: string) =>
+    [...campaignsKeys.detail(campaignId), 'outreach', recordId] as const,
 };
 
 export function useCampaigns(params?: CampaignsListParams) {
@@ -133,5 +138,24 @@ export function useRemoveLeadsFromCampaign() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: campaignsKeys.detail(id) });
     },
+  });
+}
+
+export function useCampaignOutreach(
+  campaignId: string,
+  params?: { page?: number; limit?: number; status?: OutreachStatus }
+) {
+  return useQuery({
+    queryKey: campaignsKeys.outreach(campaignId, params),
+    queryFn: () => campaignsApi.getOutreachRecords(campaignId, params),
+    enabled: !!campaignId,
+  });
+}
+
+export function useOutreachRecord(campaignId: string, recordId: string) {
+  return useQuery({
+    queryKey: campaignsKeys.outreachRecord(campaignId, recordId),
+    queryFn: () => campaignsApi.getOutreachRecord(campaignId, recordId),
+    enabled: !!campaignId && !!recordId,
   });
 }

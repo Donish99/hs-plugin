@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Put,
-  Body,
-  Param,
-  HttpCode,
-  HttpStatus,
-} from '@nestjs/common';
+import { Controller, Get, Put, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { AccountId } from '../../common/decorators/account.decorator';
 import {
   SettingsService,

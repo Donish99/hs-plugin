@@ -51,15 +51,22 @@ export function withAccountIdV1(path: string): string {
   return `/v1/accounts/${accountId}${path}`;
 }
 
-// Request interceptor - add portalId to requests that need it
+// Request interceptor - add portalId to authenticated requests
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Add portalId as query param for hubspot oauth endpoints
-  if (config.url?.includes('/hubspot/oauth/')) {
-    const portalId = getPortalId();
-    if (portalId) {
+  const portalId = getPortalId();
+
+  if (portalId) {
+    // Add x-portal-id header for all authenticated requests
+    // This is required by TokenValidationMiddleware on the backend
+    config.headers = config.headers || {};
+    config.headers['x-portal-id'] = portalId;
+
+    // Also add as query param for OAuth endpoints (backwards compatibility)
+    if (config.url?.includes('/hubspot/oauth/')) {
       config.params = { ...config.params, portal_id: portalId };
     }
   }
+
   return config;
 });
 

@@ -47,19 +47,104 @@ export interface LeadStats {
   byLifecycleStage: Array<{ stage: string; count: number }>;
 }
 
+/**
+ * Backend PrioritizedContact shape (what the API actually returns)
+ */
+interface BackendContact {
+  contact: {
+    id: string;
+    properties: Record<string, string | null>;
+    createdAt: string;
+    updatedAt: string;
+  };
+  dormancyScore: {
+    totalScore: number;
+    factors: {
+      daysSinceLastContact: number | null;
+      daysSinceLastOpen: number | null;
+      daysSinceLastClick: number | null;
+      daysSinceLastVisit: number | null;
+      lastContactScore: number;
+      emailEngagementScore: number;
+      websiteEngagementScore: number;
+    };
+    calculatedAt: string;
+  };
+  leadScore: number;
+  dealValue: number;
+  priorityScore: number;
+  lastEngagementDate: string | null;
+}
+
+/**
+ * Transform backend PrioritizedContact to frontend DormantLead
+ */
+function transformContact(backendContact: BackendContact): DormantLead {
+  const { contact, dormancyScore, leadScore, lastEngagementDate } = backendContact;
+  const props = contact.properties || {};
+
+  // Use backend-calculated daysSinceLastContact, fallback to calculating from dates
+  let daysDormant = dormancyScore?.factors?.daysSinceLastContact ?? 0;
+
+  // If backend didn't calculate it, try to calculate from available dates
+  if (!daysDormant) {
+    const lastContactStr = props.notes_last_contacted || lastEngagementDate;
+    if (lastContactStr) {
+      const lastContact = new Date(lastContactStr);
+      if (!isNaN(lastContact.getTime())) {
+        const now = new Date();
+        daysDormant = Math.floor((now.getTime() - lastContact.getTime()) / (1000 * 60 * 60 * 24));
+      }
+    }
+  }
+
+  // Determine last contact date from various sources
+  const lastContactDate = props.notes_last_contacted || lastEngagementDate || undefined;
+
+  return {
+    id: contact.id,
+    hubspotContactId: contact.id,
+    email: props.email || '',
+    firstName: props.firstname || undefined,
+    lastName: props.lastname || undefined,
+    company: props.company || undefined,
+    phone: props.phone || undefined,
+    lastContactDate: lastContactDate || undefined,
+    daysDormant: daysDormant > 0 ? daysDormant : 0,
+    dormancyScore: dormancyScore?.totalScore ?? 0,
+    leadScore: leadScore || undefined,
+    lifecycleStage: props.lifecyclestage || undefined,
+    createdAt: contact.createdAt,
+    properties: props as Record<string, string>,
+  };
+}
+
 export const leadsApi = {
   /**
    * Get paginated list of dormant leads
    */
   getAll: async (params?: LeadsListParams): Promise<LeadsListResponse> => {
-    const response = await apiClient.get<{ contacts: DormantLead[]; total: number; page: number; limit: number; totalPages: number }>(
+    const response = await apiClient.get<{
+      contacts: BackendContact[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number
+    }>(
       withAccountId('/dormant-leads'),
       { params }
     );
-    // Map backend response to frontend interface with both contacts and leads
+
+    // Transform backend contacts to frontend format
+    const transformedContacts = response.data.contacts.map(transformContact);
+
     return {
-      ...response.data,
-      leads: response.data.contacts,
+      contacts: transformedContacts,
+      leads: transformedContacts,
+      total: response.data.total,
+      page: response.data.page,
+      limit: response.data.limit,
+      totalPages: response.data.totalPages,
     };
   },
 
@@ -94,9 +179,15 @@ export const leadsApi = {
   /**
    * Trigger a dormancy scan
    */
-  triggerScan: async (): Promise<{ jobId: string; message: string }> => {
-    // This endpoint might need to be added to backend
-    return { jobId: 'pending', message: 'Scan triggered' };
+  triggerScan: async (options?: {
+    ruleId?: string;
+    forceRefresh?: boolean;
+  }): Promise<{ success: boolean; message: string; accountId: string; ruleId?: string }> => {
+    const response = await apiClient.post(
+      withAccountId('/scan/trigger'),
+      options || {}
+    );
+    return response.data;
   },
 
   /**

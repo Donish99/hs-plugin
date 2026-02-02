@@ -2,7 +2,6 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { QueryBuilderService } from './query-builder.service';
 import { DormancyRulesService } from './dormancy-rules.service';
 import { ContactsService } from '../../hubspot/services/contacts.service';
-import { DormancyRule } from '../../entities/dormancy-rule.entity';
 
 export interface HubSpotContact {
   id: string;
