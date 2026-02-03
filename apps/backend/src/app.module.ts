@@ -12,6 +12,7 @@ import { OutreachModule } from './outreach/outreach.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { SettingsModule } from './settings/settings.module';
+import { EventsModule } from './events/events.module';
 import { getDatabaseConfig } from './config/database.config';
 import { TokenValidationMiddleware } from './hubspot/middleware/token-validation.middleware';
 
@@ -27,6 +28,7 @@ import { TokenValidationMiddleware } from './hubspot/middleware/token-validation
       useFactory: (configService: ConfigService) => getDatabaseConfig(configService),
     }),
     TerminusModule,
+    EventsModule,
     HubspotModule,
     CampaignsModule,
     AiModule,

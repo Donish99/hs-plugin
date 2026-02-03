@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { getQueueToken } from '@nestjs/bull';
 import { Repository } from 'typeorm';
 import { CampaignService, CreateCampaignFromScanDto } from './campaign.service';
 import { Campaign, CampaignStatus } from '../../entities/campaign.entity';
 import { OutreachRecord, OutreachChannel, OutreachStatus } from '../../entities/outreach-record.entity';
 import { DormancyDetectionService } from './dormancy-detection.service';
 import { HubSpotContact, ScanResult } from './scanner.service';
+import { QUEUE_NAMES } from '../../config/redis.config';
 
 describe('CampaignService', () => {
   let service: CampaignService;
@@ -39,6 +41,10 @@ describe('CampaignService', () => {
     getContactEngagementData: jest.fn(),
   };
 
+  const mockSendCampaignQueue = {
+    add: jest.fn().mockResolvedValue({ id: 'job-123' }),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -54,6 +60,10 @@ describe('CampaignService', () => {
         {
           provide: DormancyDetectionService,
           useValue: mockDormancyDetectionService,
+        },
+        {
+          provide: getQueueToken(QUEUE_NAMES.SEND_CAMPAIGN),
+          useValue: mockSendCampaignQueue,
         },
       ],
     }).compile();

@@ -1,6 +1,8 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bull';
 import { Repository, In } from 'typeorm';
+import { Queue } from 'bull';
 import { Campaign, CampaignStatus } from '../../entities/campaign.entity';
 import {
   OutreachRecord,
@@ -9,6 +11,8 @@ import {
 } from '../../entities/outreach-record.entity';
 import { DormancyDetectionService } from './dormancy-detection.service';
 import { HubSpotContact, ScanResult } from './scanner.service';
+import { QUEUE_NAMES } from '../../config/redis.config';
+import { SendCampaignJobData, ProcessCampaignJobData } from '../../jobs/send-campaign.processor';
 
 /**
  * DTO for creating a campaign from scan results
@@ -53,6 +57,18 @@ export interface CampaignWithOutreach {
   outreachRecords: OutreachRecord[];
 }
 
+/**
+ * Campaign progress data for real-time updates
+ */
+export interface CampaignProgress {
+  total: number;
+  pending: number;
+  sent: number;
+  failed: number;
+  generating: number;
+  percentComplete: number;
+}
+
 // Statuses that indicate an active (not completed) outreach
 const ACTIVE_OUTREACH_STATUSES = [
   OutreachStatus.PENDING,
@@ -73,6 +89,8 @@ export class CampaignService {
     @InjectRepository(OutreachRecord)
     private readonly outreachRepository: Repository<OutreachRecord>,
     private readonly dormancyDetectionService: DormancyDetectionService,
+    @InjectQueue(QUEUE_NAMES.SEND_CAMPAIGN)
+    private readonly sendCampaignQueue: Queue<SendCampaignJobData>,
   ) {}
 
   /**
@@ -264,8 +282,9 @@ export class CampaignService {
 
   /**
    * Start a campaign (transition from DRAFT to RUNNING)
+   * Optionally queues the campaign for processing if portalId is provided
    */
-  async startCampaign(campaignId: string): Promise<Campaign | null> {
+  async startCampaign(campaignId: string, portalId?: number): Promise<Campaign | null> {
     const campaign = await this.campaignRepository.findOne({
       where: { id: campaignId },
     });
@@ -275,6 +294,10 @@ export class CampaignService {
     }
 
     if (campaign.status === CampaignStatus.RUNNING) {
+      // Campaign already running - queue processing if portalId provided and not already processing
+      if (portalId) {
+        await this.queueCampaignProcessing(campaign, portalId);
+      }
       return campaign;
     }
 
@@ -286,13 +309,43 @@ export class CampaignService {
 
     campaign.status = CampaignStatus.RUNNING;
     campaign.startedAt = new Date();
-    return this.campaignRepository.save(campaign);
+    const savedCampaign = await this.campaignRepository.save(campaign);
+
+    // Queue the campaign for processing
+    if (portalId) {
+      await this.queueCampaignProcessing(savedCampaign, portalId);
+    }
+
+    return savedCampaign;
+  }
+
+  /**
+   * Queue a campaign for processing
+   */
+  private async queueCampaignProcessing(campaign: Campaign, portalId: number): Promise<void> {
+    const jobData: ProcessCampaignJobData = {
+      type: 'process-campaign',
+      campaignId: campaign.id,
+      accountId: campaign.accountId,
+      portalId,
+    };
+
+    await this.sendCampaignQueue.add('process-campaign', jobData, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 5000,
+      },
+    });
+
+    this.logger.log(`Queued campaign ${campaign.id} for processing`);
   }
 
   /**
    * Resume a paused campaign
+   * Optionally queues the campaign for processing if portalId is provided
    */
-  async resumeCampaign(campaignId: string): Promise<Campaign | null> {
+  async resumeCampaign(campaignId: string, portalId?: number): Promise<Campaign | null> {
     const campaign = await this.campaignRepository.findOne({
       where: { id: campaignId },
     });
@@ -302,6 +355,10 @@ export class CampaignService {
     }
 
     if (campaign.status === CampaignStatus.RUNNING) {
+      // Campaign already running - queue processing if portalId provided
+      if (portalId) {
+        await this.queueCampaignProcessing(campaign, portalId);
+      }
       return campaign;
     }
 
@@ -312,7 +369,14 @@ export class CampaignService {
     }
 
     campaign.status = CampaignStatus.RUNNING;
-    return this.campaignRepository.save(campaign);
+    const savedCampaign = await this.campaignRepository.save(campaign);
+
+    // Queue the campaign for processing
+    if (portalId) {
+      await this.queueCampaignProcessing(savedCampaign, portalId);
+    }
+
+    return savedCampaign;
   }
 
   /**
@@ -410,6 +474,56 @@ export class CampaignService {
   }
 
   /**
+   * Calculate campaign progress from outreach records
+   */
+  async getCampaignProgress(campaignId: string): Promise<CampaignProgress> {
+    const records = await this.outreachRepository.find({
+      where: { campaignId },
+      select: ['status'],
+    });
+
+    const total = records.length;
+    let pending = 0;
+    let sent = 0;
+    let failed = 0;
+    let generating = 0;
+
+    for (const record of records) {
+      switch (record.status) {
+        case OutreachStatus.PENDING:
+          pending++;
+          break;
+        case OutreachStatus.APPROVED:
+          generating++;
+          break;
+        case OutreachStatus.SENT:
+        case OutreachStatus.DELIVERED:
+        case OutreachStatus.OPENED:
+        case OutreachStatus.CLICKED:
+        case OutreachStatus.REPLIED:
+          sent++;
+          break;
+        case OutreachStatus.FAILED:
+        case OutreachStatus.BOUNCED:
+          failed++;
+          break;
+      }
+    }
+
+    const processed = sent + failed;
+    const percentComplete = total > 0 ? Math.round((processed / total) * 100) : 0;
+
+    return {
+      total,
+      pending,
+      sent,
+      failed,
+      generating,
+      percentComplete,
+    };
+  }
+
+  /**
    * Delete a campaign and its associated outreach records
    */
   async deleteCampaign(accountId: string, campaignId: string): Promise<boolean> {
@@ -430,6 +544,268 @@ export class CampaignService {
     this.logger.log(`Deleted campaign ${campaignId} and its outreach records`);
 
     return true;
+  }
+
+  /**
+   * Generate AI messages for a campaign without sending
+   * This is used for the pre-send review workflow
+   */
+  async generateCampaignMessages(
+    campaignId: string,
+    portalId: number,
+  ): Promise<{ generatedCount: number; alreadyGenerated: number }> {
+    const records = await this.outreachRepository.find({
+      where: { campaignId, status: OutreachStatus.PENDING },
+    });
+
+    let generatedCount = 0;
+    let alreadyGenerated = 0;
+
+    for (const record of records) {
+      if (record.subject && record.bodyText) {
+        alreadyGenerated++;
+        continue;
+      }
+      generatedCount++;
+    }
+
+    // Queue a generation job (we'll handle this in a processor)
+    const campaign = await this.campaignRepository.findOne({
+      where: { id: campaignId },
+    });
+
+    if (campaign) {
+      // Queue the campaign for generation only (not sending)
+      await this.sendCampaignQueue.add(
+        'generate-messages',
+        {
+          type: 'generate-messages' as const,
+          campaignId,
+          accountId: campaign.accountId,
+          portalId,
+        },
+        {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 5000,
+          },
+        },
+      );
+    }
+
+    return { generatedCount, alreadyGenerated };
+  }
+
+  /**
+   * Approve a single outreach record for sending
+   */
+  async approveOutreachRecord(
+    accountId: string,
+    campaignId: string,
+    recordId: string,
+  ): Promise<OutreachRecord | null> {
+    const record = await this.outreachRepository.findOne({
+      where: { id: recordId, campaignId, accountId },
+    });
+
+    if (!record) {
+      return null;
+    }
+
+    if (record.status !== OutreachStatus.PENDING) {
+      throw new BadRequestException(`Cannot approve record with status ${record.status}`);
+    }
+
+    if (!record.subject || !record.bodyText) {
+      throw new BadRequestException('Cannot approve record without generated message content');
+    }
+
+    record.status = OutreachStatus.APPROVED;
+    return this.outreachRepository.save(record);
+  }
+
+  /**
+   * Approve all pending outreach records that have generated content
+   */
+  async approveAllOutreach(
+    accountId: string,
+    campaignId: string,
+  ): Promise<{ approvedCount: number; skippedCount: number }> {
+    const records = await this.outreachRepository.find({
+      where: { campaignId, accountId, status: OutreachStatus.PENDING },
+    });
+
+    let approvedCount = 0;
+    let skippedCount = 0;
+
+    for (const record of records) {
+      if (record.subject && record.bodyText) {
+        record.status = OutreachStatus.APPROVED;
+        approvedCount++;
+      } else {
+        skippedCount++;
+      }
+    }
+
+    if (approvedCount > 0) {
+      await this.outreachRepository.save(records.filter((r) => r.status === OutreachStatus.APPROVED));
+    }
+
+    return { approvedCount, skippedCount };
+  }
+
+  /**
+   * Send only approved messages
+   */
+  async sendApprovedMessages(
+    campaignId: string,
+    portalId: number,
+  ): Promise<{ queuedCount: number }> {
+    const campaign = await this.campaignRepository.findOne({
+      where: { id: campaignId },
+    });
+
+    if (!campaign) {
+      throw new BadRequestException('Campaign not found');
+    }
+
+    const approvedRecords = await this.outreachRepository.find({
+      where: { campaignId, status: OutreachStatus.APPROVED },
+    });
+
+    if (approvedRecords.length === 0) {
+      return { queuedCount: 0 };
+    }
+
+    // Update campaign status to running if not already
+    if (campaign.status !== CampaignStatus.RUNNING) {
+      campaign.status = CampaignStatus.RUNNING;
+      campaign.startedAt = campaign.startedAt || new Date();
+      await this.campaignRepository.save(campaign);
+    }
+
+    // Queue sending job
+    await this.sendCampaignQueue.add(
+      'send-approved',
+      {
+        type: 'send-approved' as const,
+        campaignId,
+        accountId: campaign.accountId,
+        portalId,
+      },
+      {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 5000,
+        },
+      },
+    );
+
+    return { queuedCount: approvedRecords.length };
+  }
+
+  /**
+   * Retry a single failed outreach record
+   */
+  async retryOutreachRecord(
+    accountId: string,
+    campaignId: string,
+    recordId: string,
+    portalId: number,
+  ): Promise<OutreachRecord | null> {
+    const record = await this.outreachRepository.findOne({
+      where: { id: recordId, campaignId, accountId },
+    });
+
+    if (!record) {
+      return null;
+    }
+
+    if (record.status !== OutreachStatus.FAILED && record.status !== OutreachStatus.BOUNCED) {
+      throw new BadRequestException(`Cannot retry record with status ${record.status}`);
+    }
+
+    // Reset status to pending
+    record.status = OutreachStatus.PENDING;
+    await this.outreachRepository.save(record);
+
+    // Ensure campaign is running
+    const campaign = await this.campaignRepository.findOne({
+      where: { id: campaignId, accountId },
+    });
+
+    if (campaign && campaign.status !== CampaignStatus.RUNNING) {
+      // Start the campaign if it's not running
+      await this.startCampaign(campaignId, portalId);
+    } else if (campaign) {
+      // Re-queue processing if campaign is already running
+      await this.queueCampaignProcessing(campaign, portalId);
+    }
+
+    return record;
+  }
+
+  /**
+   * Retry all failed outreach records for a campaign
+   */
+  async retryAllFailedOutreach(
+    accountId: string,
+    campaignId: string,
+    portalId: number,
+  ): Promise<{ retriedCount: number }> {
+    const failedRecords = await this.outreachRepository.find({
+      where: [
+        { campaignId, accountId, status: OutreachStatus.FAILED },
+        { campaignId, accountId, status: OutreachStatus.BOUNCED },
+      ],
+    });
+
+    if (failedRecords.length === 0) {
+      return { retriedCount: 0 };
+    }
+
+    // Reset all failed records to pending
+    for (const record of failedRecords) {
+      record.status = OutreachStatus.PENDING;
+    }
+    await this.outreachRepository.save(failedRecords);
+
+    // Ensure campaign is running and queue processing
+    const campaign = await this.campaignRepository.findOne({
+      where: { id: campaignId, accountId },
+    });
+
+    if (campaign) {
+      if (campaign.status === CampaignStatus.COMPLETED) {
+        // Reset to running if completed
+        campaign.status = CampaignStatus.RUNNING;
+        campaign.completedAt = undefined;
+        await this.campaignRepository.save(campaign);
+      }
+      await this.queueCampaignProcessing(campaign, portalId);
+    }
+
+    this.logger.log(`Retried ${failedRecords.length} failed outreach records for campaign ${campaignId}`);
+
+    return { retriedCount: failedRecords.length };
+  }
+
+  /**
+   * Get failed outreach records for a campaign
+   */
+  async getFailedOutreachRecords(
+    accountId: string,
+    campaignId: string,
+  ): Promise<OutreachRecord[]> {
+    return this.outreachRepository.find({
+      where: [
+        { campaignId, accountId, status: OutreachStatus.FAILED },
+        { campaignId, accountId, status: OutreachStatus.BOUNCED },
+      ],
+      order: { createdAt: 'ASC' },
+    });
   }
 
   /**

@@ -33,6 +33,11 @@ export function useCampaign(id: string) {
     queryKey: campaignsKeys.detail(id),
     queryFn: () => campaignsApi.getById(id),
     enabled: !!id,
+    // Smart polling: poll every 3 seconds when campaign is running
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data?.status === 'running' ? 3000 : false;
+    },
   });
 }
 
@@ -143,12 +148,15 @@ export function useRemoveLeadsFromCampaign() {
 
 export function useCampaignOutreach(
   campaignId: string,
-  params?: { page?: number; limit?: number; status?: OutreachStatus }
+  params?: { page?: number; limit?: number; status?: OutreachStatus },
+  isRunning?: boolean
 ) {
   return useQuery({
     queryKey: campaignsKeys.outreach(campaignId, params),
     queryFn: () => campaignsApi.getOutreachRecords(campaignId, params),
     enabled: !!campaignId,
+    // Smart polling: poll every 3 seconds when campaign is running
+    refetchInterval: isRunning ? 3000 : false,
   });
 }
 
@@ -157,5 +165,87 @@ export function useOutreachRecord(campaignId: string, recordId: string) {
     queryKey: campaignsKeys.outreachRecord(campaignId, recordId),
     queryFn: () => campaignsApi.getOutreachRecord(campaignId, recordId),
     enabled: !!campaignId && !!recordId,
+  });
+}
+
+export function useGenerateMessages() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (campaignId: string) => campaignsApi.generateMessages(campaignId),
+    onSuccess: (_, campaignId) => {
+      queryClient.invalidateQueries({ queryKey: campaignsKeys.detail(campaignId) });
+      queryClient.invalidateQueries({ queryKey: campaignsKeys.outreach(campaignId, undefined) });
+    },
+  });
+}
+
+export function useApproveOutreach() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ campaignId, recordId }: { campaignId: string; recordId: string }) =>
+      campaignsApi.approveOutreach(campaignId, recordId),
+    onSuccess: (_, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: campaignsKeys.outreach(campaignId, undefined) });
+    },
+  });
+}
+
+export function useApproveAllOutreach() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (campaignId: string) => campaignsApi.approveAllOutreach(campaignId),
+    onSuccess: (_, campaignId) => {
+      queryClient.invalidateQueries({ queryKey: campaignsKeys.outreach(campaignId, undefined) });
+    },
+  });
+}
+
+export function useSendApproved() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (campaignId: string) => campaignsApi.sendApproved(campaignId),
+    onSuccess: (_, campaignId) => {
+      queryClient.invalidateQueries({ queryKey: campaignsKeys.detail(campaignId) });
+      queryClient.invalidateQueries({ queryKey: campaignsKeys.outreach(campaignId, undefined) });
+    },
+  });
+}
+
+export function useFailedOutreach(campaignId: string) {
+  return useQuery({
+    queryKey: [...campaignsKeys.detail(campaignId), 'failed'] as const,
+    queryFn: () => campaignsApi.getFailedOutreach(campaignId),
+    enabled: !!campaignId,
+  });
+}
+
+export function useRetryOutreach() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ campaignId, recordId }: { campaignId: string; recordId: string }) =>
+      campaignsApi.retryOutreach(campaignId, recordId),
+    onSuccess: (_, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: campaignsKeys.detail(campaignId) });
+      queryClient.invalidateQueries({ queryKey: campaignsKeys.outreach(campaignId, undefined) });
+      queryClient.invalidateQueries({ queryKey: [...campaignsKeys.detail(campaignId), 'failed'] });
+    },
+  });
+}
+
+export function useRetryAllFailed() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (campaignId: string) => campaignsApi.retryAllFailed(campaignId),
+    onSuccess: (_, campaignId) => {
+      queryClient.invalidateQueries({ queryKey: campaignsKeys.detail(campaignId) });
+      queryClient.invalidateQueries({ queryKey: campaignsKeys.outreach(campaignId, undefined) });
+      queryClient.invalidateQueries({ queryKey: [...campaignsKeys.detail(campaignId), 'failed'] });
+    },
   });
 }

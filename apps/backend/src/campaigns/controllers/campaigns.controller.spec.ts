@@ -31,6 +31,8 @@ describe('CampaignsController', () => {
       findCampaignsByAccount: jest.fn(),
       getCampaignWithOutreachRecords: jest.fn(),
       updateCampaignStatus: jest.fn(),
+      startCampaign: jest.fn(),
+      resumeCampaign: jest.fn(),
       pauseCampaign: jest.fn(),
       stopCampaign: jest.fn(),
       getOutreachRecordsByCampaign: jest.fn(),
@@ -225,11 +227,13 @@ describe('CampaignsController', () => {
       campaignService.pauseCampaign.mockResolvedValue({
         ...mockCampaign,
         status: CampaignStatus.PAUSED,
+        emailsSent: 0,
       } as any);
 
       const result = await controller.pauseCampaign(mockAccountId, mockCampaignId);
 
-      expect(result.success).toBe(true);
+      expect(result.id).toBe(mockCampaignId);
+      expect(result.status).toBe(CampaignStatus.PAUSED);
     });
   });
 

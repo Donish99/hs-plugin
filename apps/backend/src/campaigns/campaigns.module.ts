@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BullModule } from '@nestjs/bull';
 import { DormancyRule } from '../entities/dormancy-rule.entity';
 import { Campaign } from '../entities/campaign.entity';
 import { OutreachRecord } from '../entities/outreach-record.entity';
@@ -14,6 +15,7 @@ import { DormantLeadsController } from './controllers/dormant-leads.controller';
 import { CampaignsController } from './controllers/campaigns.controller';
 import { HubspotModule } from '../hubspot/hubspot.module';
 import { OutreachModule } from '../outreach/outreach.module';
+import { QUEUE_NAMES } from '../config/redis.config';
 
 /**
  * Campaigns module - handles dormancy detection and campaign management
@@ -21,6 +23,7 @@ import { OutreachModule } from '../outreach/outreach.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([DormancyRule, Campaign, OutreachRecord]),
+    BullModule.registerQueue({ name: QUEUE_NAMES.SEND_CAMPAIGN }),
     HubspotModule,
     forwardRef(() => OutreachModule),
   ],

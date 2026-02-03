@@ -25,6 +25,15 @@ export interface Campaign {
   updatedAt: string;
 }
 
+export interface CampaignProgress {
+  total: number;
+  pending: number;
+  sent: number;
+  failed: number;
+  generating: number;
+  percentComplete: number;
+}
+
 export interface CampaignDetails extends Campaign {
   leads: Array<{
     id: string;
@@ -39,6 +48,7 @@ export interface CampaignDetails extends Campaign {
     replyRate: number;
     bounceRate: number;
   };
+  progress?: CampaignProgress;
 }
 
 export interface CreateCampaignInput {
@@ -248,6 +258,154 @@ export const campaignsApi = {
   getOutreachRecord: async (campaignId: string, recordId: string): Promise<OutreachRecord> => {
     const response = await apiClient.get<OutreachRecord>(
       withAccountId(`/campaigns/${campaignId}/outreach/${recordId}`)
+    );
+    return response.data;
+  },
+
+  /**
+   * Generate AI messages for a campaign without sending
+   */
+  generateMessages: async (campaignId: string): Promise<{
+    success: boolean;
+    message: string;
+    generatedCount: number;
+    alreadyGenerated: number;
+  }> => {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      generatedCount: number;
+      alreadyGenerated: number;
+    }>(
+      withAccountId(`/campaigns/${campaignId}/generate`)
+    );
+    return response.data;
+  },
+
+  /**
+   * Approve a single outreach record for sending
+   */
+  approveOutreach: async (campaignId: string, recordId: string): Promise<{
+    success: boolean;
+    message: string;
+    record: {
+      id: string;
+      status: OutreachStatus;
+      contactEmail?: string;
+      contactName?: string;
+    };
+  }> => {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      record: {
+        id: string;
+        status: OutreachStatus;
+        contactEmail?: string;
+        contactName?: string;
+      };
+    }>(
+      withAccountId(`/campaigns/${campaignId}/outreach/${recordId}/approve`)
+    );
+    return response.data;
+  },
+
+  /**
+   * Approve all pending outreach records that have generated content
+   */
+  approveAllOutreach: async (campaignId: string): Promise<{
+    success: boolean;
+    message: string;
+    approvedCount: number;
+    skippedCount: number;
+  }> => {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      approvedCount: number;
+      skippedCount: number;
+    }>(
+      withAccountId(`/campaigns/${campaignId}/outreach/approve-all`)
+    );
+    return response.data;
+  },
+
+  /**
+   * Send only approved messages
+   */
+  sendApproved: async (campaignId: string): Promise<{
+    success: boolean;
+    message: string;
+    queuedCount: number;
+  }> => {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      queuedCount: number;
+    }>(
+      withAccountId(`/campaigns/${campaignId}/send-approved`)
+    );
+    return response.data;
+  },
+
+  /**
+   * Retry a single failed outreach record
+   */
+  retryOutreach: async (campaignId: string, recordId: string): Promise<{
+    success: boolean;
+    message: string;
+    record: {
+      id: string;
+      status: OutreachStatus;
+      contactEmail?: string;
+      contactName?: string;
+    };
+  }> => {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      record: {
+        id: string;
+        status: OutreachStatus;
+        contactEmail?: string;
+        contactName?: string;
+      };
+    }>(
+      withAccountId(`/campaigns/${campaignId}/outreach/${recordId}/retry`)
+    );
+    return response.data;
+  },
+
+  /**
+   * Retry all failed outreach records for a campaign
+   */
+  retryAllFailed: async (campaignId: string): Promise<{
+    success: boolean;
+    message: string;
+    retriedCount: number;
+  }> => {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      retriedCount: number;
+    }>(
+      withAccountId(`/campaigns/${campaignId}/retry-failed`)
+    );
+    return response.data;
+  },
+
+  /**
+   * Get all failed outreach records for a campaign
+   */
+  getFailedOutreach: async (campaignId: string): Promise<{
+    records: OutreachRecord[];
+    total: number;
+  }> => {
+    const response = await apiClient.get<{
+      records: OutreachRecord[];
+      total: number;
+    }>(
+      withAccountId(`/campaigns/${campaignId}/outreach/failed`)
     );
     return response.data;
   },

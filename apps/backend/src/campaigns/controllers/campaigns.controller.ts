@@ -263,6 +263,9 @@ export class CampaignsController {
 
     const { campaign: c, outreachRecords } = result;
 
+    // Get real-time progress data
+    const progress = await this.campaignService.getCampaignProgress(campaignId);
+
     // Transform to frontend format
     return {
       id: c.id,
@@ -296,6 +299,7 @@ export class CampaignsController {
         replyRate: c.totalContacts > 0 ? (c.emailsReplied / c.totalContacts) * 100 : 0,
         bounceRate: 0,
       },
+      progress,
     };
   }
 
@@ -324,14 +328,15 @@ export class CampaignsController {
 
   /**
    * POST /api/accounts/:accountId/campaigns/:campaignId/start
-   * Start a draft campaign
+   * Start a draft campaign and queue it for processing
    */
   @Post(':campaignId/start')
   async startCampaign(
     @AccountId() accountId: string,
+    @PortalId() portalId: number,
     @Param('campaignId') campaignId: string,
   ) {
-    const campaign = await this.campaignService.startCampaign(campaignId);
+    const campaign = await this.campaignService.startCampaign(campaignId, portalId);
 
     if (!campaign) {
       throw new NotFoundException(`Campaign ${campaignId} not found`);
@@ -352,14 +357,15 @@ export class CampaignsController {
 
   /**
    * POST /api/accounts/:accountId/campaigns/:campaignId/resume
-   * Resume a paused campaign
+   * Resume a paused campaign and queue it for processing
    */
   @Post(':campaignId/resume')
   async resumeCampaign(
     @AccountId() accountId: string,
+    @PortalId() portalId: number,
     @Param('campaignId') campaignId: string,
   ) {
-    const campaign = await this.campaignService.resumeCampaign(campaignId);
+    const campaign = await this.campaignService.resumeCampaign(campaignId, portalId);
 
     if (!campaign) {
       throw new NotFoundException(`Campaign ${campaignId} not found`);
@@ -485,6 +491,39 @@ export class CampaignsController {
   }
 
   /**
+   * GET /api/accounts/:accountId/campaigns/:campaignId/outreach/failed
+   * Get all failed outreach records for a campaign
+   * NOTE: This route MUST be defined before /:recordId to avoid "failed" being treated as a recordId
+   */
+  @Get(':campaignId/outreach/failed')
+  async getFailedOutreach(
+    @AccountId() accountId: string,
+    @Param('campaignId') campaignId: string,
+  ) {
+    const records = await this.campaignService.getFailedOutreachRecords(
+      accountId,
+      campaignId,
+    );
+
+    return {
+      records: records.map((r) => ({
+        id: r.id,
+        campaignId: r.campaignId,
+        hubspotContactId: r.hubspotContactId,
+        contactEmail: r.contactEmail,
+        contactName: r.contactName || undefined,
+        companyName: r.companyName || undefined,
+        channel: r.channel,
+        subject: r.subject || undefined,
+        status: r.status,
+        createdAt: r.createdAt?.toISOString(),
+        updatedAt: r.updatedAt?.toISOString(),
+      })),
+      total: records.length,
+    };
+  }
+
+  /**
    * GET /api/accounts/:accountId/campaigns/:campaignId/outreach/:recordId
    * Get a single outreach record with full message content
    */
@@ -524,6 +563,162 @@ export class CampaignsController {
       repliedAt: record.repliedAt?.toISOString(),
       createdAt: record.createdAt?.toISOString(),
       updatedAt: record.updatedAt?.toISOString(),
+    };
+  }
+
+  /**
+   * POST /api/accounts/:accountId/campaigns/:campaignId/generate
+   * Generate AI messages for a campaign without sending
+   */
+  @Post(':campaignId/generate')
+  async generateMessages(
+    @AccountId() accountId: string,
+    @PortalId() portalId: number,
+    @Param('campaignId') campaignId: string,
+  ) {
+    const result = await this.campaignService.generateCampaignMessages(
+      campaignId,
+      portalId,
+    );
+
+    return {
+      success: true,
+      message: `Queued ${result.generatedCount} messages for generation`,
+      generatedCount: result.generatedCount,
+      alreadyGenerated: result.alreadyGenerated,
+    };
+  }
+
+  /**
+   * POST /api/accounts/:accountId/campaigns/:campaignId/outreach/:recordId/approve
+   * Approve a single outreach record for sending
+   */
+  @Post(':campaignId/outreach/:recordId/approve')
+  async approveOutreach(
+    @AccountId() accountId: string,
+    @Param('campaignId') campaignId: string,
+    @Param('recordId') recordId: string,
+  ) {
+    const record = await this.campaignService.approveOutreachRecord(
+      accountId,
+      campaignId,
+      recordId,
+    );
+
+    if (!record) {
+      throw new NotFoundException(`Outreach record ${recordId} not found`);
+    }
+
+    return {
+      success: true,
+      message: 'Outreach record approved',
+      record: {
+        id: record.id,
+        status: record.status,
+        contactEmail: record.contactEmail,
+        contactName: record.contactName,
+      },
+    };
+  }
+
+  /**
+   * POST /api/accounts/:accountId/campaigns/:campaignId/outreach/approve-all
+   * Approve all pending outreach records that have generated content
+   */
+  @Post(':campaignId/outreach/approve-all')
+  async approveAllOutreach(
+    @AccountId() accountId: string,
+    @Param('campaignId') campaignId: string,
+  ) {
+    const result = await this.campaignService.approveAllOutreach(
+      accountId,
+      campaignId,
+    );
+
+    return {
+      success: true,
+      message: `Approved ${result.approvedCount} messages (${result.skippedCount} skipped)`,
+      approvedCount: result.approvedCount,
+      skippedCount: result.skippedCount,
+    };
+  }
+
+  /**
+   * POST /api/accounts/:accountId/campaigns/:campaignId/send-approved
+   * Send only approved messages
+   */
+  @Post(':campaignId/send-approved')
+  async sendApproved(
+    @AccountId() accountId: string,
+    @PortalId() portalId: number,
+    @Param('campaignId') campaignId: string,
+  ) {
+    const result = await this.campaignService.sendApprovedMessages(
+      campaignId,
+      portalId,
+    );
+
+    return {
+      success: true,
+      message: `Queued ${result.queuedCount} approved messages for sending`,
+      queuedCount: result.queuedCount,
+    };
+  }
+
+  /**
+   * POST /api/accounts/:accountId/campaigns/:campaignId/outreach/:recordId/retry
+   * Retry a single failed outreach record
+   */
+  @Post(':campaignId/outreach/:recordId/retry')
+  async retryOutreachRecord(
+    @AccountId() accountId: string,
+    @PortalId() portalId: number,
+    @Param('campaignId') campaignId: string,
+    @Param('recordId') recordId: string,
+  ) {
+    const record = await this.campaignService.retryOutreachRecord(
+      accountId,
+      campaignId,
+      recordId,
+      portalId,
+    );
+
+    if (!record) {
+      throw new NotFoundException(`Outreach record ${recordId} not found`);
+    }
+
+    return {
+      success: true,
+      message: 'Outreach record queued for retry',
+      record: {
+        id: record.id,
+        status: record.status,
+        contactEmail: record.contactEmail,
+        contactName: record.contactName,
+      },
+    };
+  }
+
+  /**
+   * POST /api/accounts/:accountId/campaigns/:campaignId/retry-failed
+   * Retry all failed outreach records for a campaign
+   */
+  @Post(':campaignId/retry-failed')
+  async retryAllFailed(
+    @AccountId() accountId: string,
+    @PortalId() portalId: number,
+    @Param('campaignId') campaignId: string,
+  ) {
+    const result = await this.campaignService.retryAllFailedOutreach(
+      accountId,
+      campaignId,
+      portalId,
+    );
+
+    return {
+      success: true,
+      message: `${result.retriedCount} failed records queued for retry`,
+      retriedCount: result.retriedCount,
     };
   }
 

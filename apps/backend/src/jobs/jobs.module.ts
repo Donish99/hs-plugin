@@ -12,10 +12,12 @@ import { ClassificationProcessor } from './classification.processor';
 import { ScanController } from './scan.controller';
 import { HubspotAccount } from '../entities/hubspot-account.entity';
 import { OutreachRecord } from '../entities/outreach-record.entity';
+import { Campaign } from '../entities/campaign.entity';
 import { Response } from '../entities/response.entity';
 import { CampaignsModule } from '../campaigns/campaigns.module';
 import { AiModule } from '../ai/ai.module';
 import { HubspotModule } from '../hubspot/hubspot.module';
+import { OutreachModule } from '../outreach/outreach.module';
 
 /**
  * Jobs module - configures Bull queues, processors, and schedulers
@@ -43,16 +45,19 @@ import { HubspotModule } from '../hubspot/hubspot.module';
     ),
 
     // TypeORM for account access
-    TypeOrmModule.forFeature([HubspotAccount, OutreachRecord, Response]),
+    TypeOrmModule.forFeature([HubspotAccount, OutreachRecord, Campaign, Response]),
 
     // CampaignsModule for scanner and rules services
     CampaignsModule,
 
-    // AiModule for classification
+    // AiModule for message generation and classification
     AiModule,
 
     // HubspotModule for contact service
     HubspotModule,
+
+    // OutreachModule for email, SMS, and HubSpot logging services
+    OutreachModule,
   ],
   controllers: [ScanController],
   providers: [

@@ -5,7 +5,11 @@ import {
   usePauseCampaign,
   useResumeCampaign,
   useCampaignOutreach,
+  useFailedOutreach,
+  useRetryOutreach,
+  useRetryAllFailed,
 } from '@/api/hooks/useCampaigns';
+import { useCampaignEvents } from '@/api/hooks/useCampaignEvents';
 import { OutreachRecord } from '@/api/endpoints/campaigns';
 import { useCampaignMetrics } from '@/api/hooks/useAnalytics';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -26,9 +30,10 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDateTime, formatNumber, formatPercent } from '@/lib/utils';
-import { ArrowLeft, Play, Pause, RefreshCw, Mail, MessageSquare, Eye, MousePointerClick, MessageCircle, Users, FileText } from 'lucide-react';
+import { ArrowLeft, Play, Pause, RefreshCw, Mail, MessageSquare, Eye, MousePointerClick, MessageCircle, Users, FileText, Loader2, CheckCircle2, XCircle, Clock, AlertTriangle, RotateCcw, ClipboardCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMemo, useState } from 'react';
+import { MessageReviewPanel } from './MessageReviewPanel';
 
 export function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -37,10 +42,37 @@ export function CampaignDetailPage() {
 
   const { data: campaign, isLoading } = useCampaign(id || '');
   const { data: campaignAnalytics, isLoading: isAnalyticsLoading } = useCampaignMetrics(id || '');
-  const { data: outreachData, isLoading: isOutreachLoading } = useCampaignOutreach(id || '');
+  const isRunning = campaign?.status === 'running';
+  const { data: outreachData, isLoading: isOutreachLoading } = useCampaignOutreach(id || '', undefined, isRunning);
+
+  // Subscribe to real-time events when campaign is running
+  useCampaignEvents(id || '', isRunning, {
+    onMessageSent: (data) => {
+      toast({
+        title: 'Message sent',
+        description: `Email sent to ${data.contactName || data.contactEmail}`,
+      });
+    },
+    onMessageFailed: (data) => {
+      toast({
+        title: 'Message failed',
+        description: `Failed to send to ${data.contactName || data.contactEmail}: ${data.error}`,
+        variant: 'destructive',
+      });
+    },
+    onCampaignCompleted: (data) => {
+      toast({
+        title: 'Campaign completed',
+        description: `${data.sent} messages sent, ${data.failed} failed`,
+      });
+    },
+  });
   const startCampaign = useStartCampaign();
   const pauseCampaign = usePauseCampaign();
   const resumeCampaign = useResumeCampaign();
+  const retryOutreach = useRetryOutreach();
+  const retryAllFailed = useRetryAllFailed();
+  const { data: failedData, isLoading: isFailedLoading } = useFailedOutreach(id || '');
 
   const [selectedMessage, setSelectedMessage] = useState<OutreachRecord | null>(null);
 
@@ -183,8 +215,17 @@ export function CampaignDetailPage() {
     );
   }
 
-  const progress =
-    campaign.targetCount > 0 ? (campaign.sentCount / campaign.targetCount) * 100 : 0;
+  // Use real-time progress if available, otherwise calculate from campaign data
+  const progressData = campaign.progress || {
+    total: campaign.targetCount,
+    pending: campaign.targetCount - campaign.sentCount,
+    sent: campaign.sentCount,
+    failed: 0,
+    generating: 0,
+    percentComplete: campaign.targetCount > 0 ? Math.round((campaign.sentCount / campaign.targetCount) * 100) : 0,
+  };
+
+  const progress = progressData.percentComplete;
 
   const handleStart = () => {
     startCampaign.mutate(campaign.id, {
@@ -206,6 +247,25 @@ export function CampaignDetailPage() {
       onError: () => toast({ title: 'Failed to resume', variant: 'destructive' }),
     });
   };
+
+  const handleRetryRecord = (recordId: string) => {
+    retryOutreach.mutate(
+      { campaignId: campaign.id, recordId },
+      {
+        onSuccess: () => toast({ title: 'Message queued for retry' }),
+        onError: () => toast({ title: 'Failed to retry', variant: 'destructive' }),
+      }
+    );
+  };
+
+  const handleRetryAll = () => {
+    retryAllFailed.mutate(campaign.id, {
+      onSuccess: (data) => toast({ title: `${data.retriedCount} messages queued for retry` }),
+      onError: () => toast({ title: 'Failed to retry messages', variant: 'destructive' }),
+    });
+  };
+
+  const failedCount = failedData?.total || progressData.failed || 0;
 
   return (
     <div className="space-y-6">
@@ -247,28 +307,33 @@ export function CampaignDetailPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Status</p>
-                <Badge
-                  variant={
-                    campaign.status === 'running'
-                      ? 'success'
-                      : campaign.status === 'completed'
-                      ? 'default'
-                      : 'secondary'
-                  }
-                  className="mt-1 capitalize"
-                >
-                  {campaign.status}
-                </Badge>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge
+                    variant={
+                      campaign.status === 'running'
+                        ? 'success'
+                        : campaign.status === 'completed'
+                        ? 'default'
+                        : 'secondary'
+                    }
+                    className="capitalize"
+                  >
+                    {isRunning && (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    )}
+                    {campaign.status}
+                  </Badge>
+                </div>
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-full ${isRunning ? 'bg-green-100 animate-pulse' : 'bg-muted'}`}>
                 {campaign.channel === 'email' ? (
-                  <Mail className="h-5 w-5" />
+                  <Mail className={`h-5 w-5 ${isRunning ? 'text-green-600' : ''}`} />
                 ) : campaign.channel === 'sms' ? (
-                  <MessageSquare className="h-5 w-5" />
+                  <MessageSquare className={`h-5 w-5 ${isRunning ? 'text-green-600' : ''}`} />
                 ) : (
                   <div className="flex gap-0.5">
-                    <Mail className="h-4 w-4" />
-                    <MessageSquare className="h-4 w-4" />
+                    <Mail className={`h-4 w-4 ${isRunning ? 'text-green-600' : ''}`} />
+                    <MessageSquare className={`h-4 w-4 ${isRunning ? 'text-green-600' : ''}`} />
                   </div>
                 )}
               </div>
@@ -279,12 +344,52 @@ export function CampaignDetailPage() {
         <Card className="md:col-span-2">
           <CardContent className="pt-6 space-y-3">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Progress</span>
-              <span>
-                {formatNumber(campaign.sentCount)} / {formatNumber(campaign.targetCount)} sent
+              <span className="text-muted-foreground">
+                {isRunning ? 'Sending messages...' : 'Progress'}
+              </span>
+              <span className="font-medium">
+                {formatNumber(progressData.sent)} / {formatNumber(progressData.total)} sent
+                {progressData.failed > 0 && (
+                  <span className="text-destructive ml-2">({progressData.failed} failed)</span>
+                )}
               </span>
             </div>
-            <Progress value={progress} className="h-3" />
+            <div className="relative">
+              <Progress
+                value={progress}
+                className={`h-3 ${isRunning ? 'transition-all duration-500' : ''}`}
+              />
+              {isRunning && progress < 100 && (
+                <div
+                  className="absolute top-0 h-3 w-8 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"
+                  style={{ left: `${Math.min(progress, 92)}%` }}
+                />
+              )}
+            </div>
+            {isRunning && (
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  <span>{formatNumber(progressData.pending)} pending</span>
+                </div>
+                {progressData.generating > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>{formatNumber(progressData.generating)} generating</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3 text-green-600" />
+                  <span>{formatNumber(progressData.sent)} sent</span>
+                </div>
+                {progressData.failed > 0 && (
+                  <div className="flex items-center gap-1">
+                    <XCircle className="h-3 w-3 text-destructive" />
+                    <span>{formatNumber(progressData.failed)} failed</span>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -354,6 +459,18 @@ export function CampaignDetailPage() {
           <TabsTrigger value="messages">
             Messages ({outreachData?.total || 0})
           </TabsTrigger>
+          {campaign.status === 'draft' && (
+            <TabsTrigger value="review">
+              <ClipboardCheck className="h-3 w-3 mr-1" />
+              Review
+            </TabsTrigger>
+          )}
+          {failedCount > 0 && (
+            <TabsTrigger value="failed" className="text-destructive">
+              <AlertTriangle className="h-3 w-3 mr-1" />
+              Failed ({failedCount})
+            </TabsTrigger>
+          )}
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="details">Details</TabsTrigger>
         </TabsList>
@@ -418,6 +535,98 @@ export function CampaignDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+        {campaign.status === 'draft' && (
+          <TabsContent value="review" className="mt-4">
+            <MessageReviewPanel campaignId={campaign.id} />
+          </TabsContent>
+        )}
+        {failedCount > 0 && (
+          <TabsContent value="failed" className="mt-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Failed Messages
+                </CardTitle>
+                <Button
+                  size="sm"
+                  onClick={handleRetryAll}
+                  disabled={retryAllFailed.isPending}
+                >
+                  {retryAllFailed.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                  )}
+                  Retry All ({failedCount})
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {isFailedLoading ? (
+                  <div className="flex justify-center py-8">
+                    <LoadingSpinner />
+                  </div>
+                ) : failedData?.records && failedData.records.length > 0 ? (
+                  <div className="space-y-3">
+                    {failedData.records.map((record) => (
+                      <div
+                        key={record.id}
+                        className="flex items-center justify-between rounded-lg border border-destructive/20 bg-destructive/5 p-4"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
+                            <XCircle className="h-5 w-5 text-destructive" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{record.contactName || 'Unknown'}</p>
+                            <p className="text-sm text-muted-foreground">{record.contactEmail}</p>
+                            {record.subject && (
+                              <p className="text-xs text-muted-foreground mt-1 truncate max-w-[300px]">
+                                Subject: {record.subject}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="destructive" className="capitalize">
+                            {record.status}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRetryRecord(record.id)}
+                            disabled={retryOutreach.isPending}
+                          >
+                            {retryOutreach.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setSelectedMessage(record)}
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <CheckCircle2 className="h-12 w-12 text-green-600 mb-3" />
+                    <p className="text-lg font-medium">No failed messages</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      All messages have been sent successfully
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
         <TabsContent value="analytics" className="mt-4">
           <div className="space-y-4">
             <Card>
