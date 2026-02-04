@@ -15,12 +15,14 @@ import { SettingsModule } from './settings/settings.module';
 import { EventsModule } from './events/events.module';
 import { getDatabaseConfig } from './config/database.config';
 import { TokenValidationMiddleware } from './hubspot/middleware/token-validation.middleware';
+import configuration from './config/configuration';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env', '.env.local'],
+      load: [configuration],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],

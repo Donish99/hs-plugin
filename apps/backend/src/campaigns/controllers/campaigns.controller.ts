@@ -14,6 +14,7 @@ import { AccountId, PortalId } from '../../common/decorators/account.decorator';
 import { CampaignService } from '../services/campaign.service';
 import { ScannerService } from '../services/scanner.service';
 import { DormancyDetectionService } from '../services/dormancy-detection.service';
+import { ContactsService } from '../../hubspot/services/contacts.service';
 import { CampaignStatus } from '../../entities/campaign.entity';
 import { OutreachChannel } from '../../entities/outreach-record.entity';
 
@@ -55,6 +56,7 @@ export class CampaignsController {
     private readonly campaignService: CampaignService,
     private readonly scannerService: ScannerService,
     private readonly dormancyDetectionService: DormancyDetectionService,
+    private readonly contactsService: ContactsService,
   ) {}
 
   /**
@@ -150,53 +152,101 @@ export class CampaignsController {
       };
     }
 
-    // Create a mock scan result from the provided IDs (for manually selected leads)
-    const scanResult = {
-      ruleId: dto.ruleId || 'manual-selection',
-      contacts: ids.map((id) => ({
-        id,
-        properties: {}, // Properties will be fetched if needed
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })),
-      totalFound: ids.length,
-      scannedAt: new Date(),
-    };
+    // Fetch contact details from HubSpot for manually selected leads
+    this.logger.log(`Fetching ${ids.length} contacts from HubSpot for manual selection`);
 
-    const result = await this.campaignService.createCampaignFromScan({
-      accountId,
-      scanResult,
-      name: dto.name,
-      channel,
-    });
+    try {
+      const fetchedContacts = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const contact = await this.contactsService.getContactById(portalId, id);
+            if (contact) {
+              // Convert properties from Record<string, string | null> to Record<string, string>
+              // by filtering out null values
+              const properties: Record<string, string> = {};
+              for (const [key, value] of Object.entries(contact.properties)) {
+                if (value !== null) {
+                  properties[key] = value;
+                }
+              }
+              return {
+                id: contact.id,
+                properties,
+                createdAt: contact.createdAt,
+                updatedAt: contact.updatedAt,
+              };
+            }
+            this.logger.warn(`Contact ${id} not found in HubSpot`);
+            return null;
+          } catch (error) {
+            this.logger.warn(`Failed to fetch contact ${id}: ${error}`);
+            return null;
+          }
+        }),
+      );
 
-    if (!result.campaign) {
+      // Filter out null contacts (not found or errors)
+      const validContacts = fetchedContacts.filter((c) => c !== null);
+
+      if (validContacts.length === 0) {
+        return {
+          success: false,
+          message: 'No contacts found in HubSpot for the provided IDs',
+          contactsSkipped: ids.length,
+        };
+      }
+
+      // Create scan result with actual contact data
+      const scanResult = {
+        ruleId: dto.ruleId || 'manual-selection',
+        contacts: validContacts,
+        totalFound: validContacts.length,
+        scannedAt: new Date(),
+      };
+
+      const result = await this.campaignService.createCampaignFromScan({
+        accountId,
+        scanResult,
+        name: dto.name,
+        channel,
+      });
+
+      if (!result.campaign) {
+        return {
+          success: false,
+          message: 'No valid contacts for campaign (missing email addresses)',
+          contactsSkipped: result.contactsSkipped,
+        };
+      }
+
+      // Return in format frontend expects
+      return {
+        id: result.campaign.id,
+        name: result.campaign.name,
+        description: dto.description || '',
+        status: result.campaign.status,
+        channel: dto.channel || 'email',
+        ruleId: dto.ruleId,
+        targetCount: result.outreachRecordsCreated,
+        sentCount: 0,
+        deliveredCount: 0,
+        openCount: 0,
+        clickCount: 0,
+        replyCount: 0,
+        tone: dto.tone || 'professional',
+        scheduledAt: dto.scheduledAt,
+        createdAt: result.campaign.createdAt?.toISOString(),
+        updatedAt: result.campaign.createdAt?.toISOString(),
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to create campaign with manual selection: ${errorMessage}`);
       return {
         success: false,
-        message: 'No valid contacts for campaign',
-        contactsSkipped: result.contactsSkipped,
+        message: `Failed to fetch contacts from HubSpot: ${errorMessage}`,
+        contactsSkipped: ids.length,
       };
     }
-
-    // Return in format frontend expects
-    return {
-      id: result.campaign.id,
-      name: result.campaign.name,
-      description: dto.description || '',
-      status: result.campaign.status,
-      channel: dto.channel || 'email',
-      ruleId: dto.ruleId,
-      targetCount: result.outreachRecordsCreated,
-      sentCount: 0,
-      deliveredCount: 0,
-      openCount: 0,
-      clickCount: 0,
-      replyCount: 0,
-      tone: dto.tone || 'professional',
-      scheduledAt: dto.scheduledAt,
-      createdAt: result.campaign.createdAt?.toISOString(),
-      updatedAt: result.campaign.createdAt?.toISOString(), // No updatedAt field, use createdAt
-    };
   }
 
   /**

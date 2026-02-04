@@ -37,6 +37,7 @@ export interface DormancyRule {
   actionType: ActionType;
   actionConfig: ActionConfig;
   createdAt: string;
+  matchedLeadsCount?: number;
 }
 
 export interface CreateRuleInput {

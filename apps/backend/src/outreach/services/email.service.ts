@@ -1,6 +1,5 @@
 import { Injectable, Logger, Inject, Optional } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as sgMail from '@sendgrid/mail';
+import sgMail = require('@sendgrid/mail');
 
 export interface EmailMessage {
   to: string;
@@ -48,28 +47,41 @@ const BOUNCE_ERROR_CODES = [550, 551, 552, 553, 554];
 
 /**
  * Email service for sending emails via SendGrid
+ * Reads configuration directly from process.env for reliability
  */
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly senderEmail: string;
   private readonly senderName: string;
+  private readonly companyName: string;
+  private readonly companyAddress: string;
   private readonly sendGridClient: typeof sgMail;
+  private readonly isConfigured: boolean;
 
   constructor(
-    private readonly configService: ConfigService,
     @Optional() @Inject('SENDGRID_CLIENT') injectedClient?: any,
   ) {
-    this.senderEmail = this.configService.get<string>('sendgrid.senderEmail') || '';
-    this.senderName = this.configService.get<string>('sendgrid.senderName') || '';
+    // Read directly from process.env for reliability
+    this.senderEmail = process.env.EMAIL_FROM || 'noreply@example.com';
+    this.senderName = process.env.EMAIL_FROM_NAME || 'Dormant Lead Reactivator';
+    this.companyName = process.env.COMPANY_NAME || 'Your Company';
+    this.companyAddress = process.env.COMPANY_ADDRESS || '123 Main St, City, State 12345';
 
     // Use injected client for testing, or real SendGrid client
     if (injectedClient) {
       this.sendGridClient = injectedClient;
+      this.isConfigured = true;
+      this.logger.log('SendGrid initialized with injected client (test mode)');
     } else {
-      const apiKey = this.configService.get<string>('sendgrid.apiKey');
+      const apiKey = process.env.SENDGRID_API_KEY;
       if (apiKey) {
         sgMail.setApiKey(apiKey);
+        this.isConfigured = true;
+        this.logger.log('SendGrid initialized successfully');
+      } else {
+        this.isConfigured = false;
+        this.logger.warn('SendGrid API key not configured - email sending disabled');
       }
       this.sendGridClient = sgMail;
     }
@@ -78,11 +90,15 @@ export class EmailService {
   /**
    * Send a single email
    */
-  async sendEmail(message: EmailMessage, options: EmailOptions = {}): Promise<EmailResult> {
+  async send(message: EmailMessage, options: EmailOptions = {}): Promise<EmailResult> {
     // Validate message
     const validationError = this.validateMessage(message, options);
     if (validationError) {
       return { success: false, error: validationError };
+    }
+
+    if (!this.isConfigured) {
+      return { success: false, error: 'SendGrid not configured' };
     }
 
     try {
@@ -90,22 +106,18 @@ export class EmailService {
       const [response] = await this.sendGridClient.send(mailData);
 
       const messageId = response.headers['x-message-id'];
+      this.logger.log(`Email sent to ${message.to}, messageId: ${messageId}`);
 
-      this.logger.log(`Email sent successfully to ${message.to}, messageId: ${messageId}`);
-
-      return {
-        success: true,
-        messageId,
-      };
+      return { success: true, messageId };
     } catch (error) {
       return this.handleSendError(error as SendGridError);
     }
   }
 
   /**
-   * Send email with retry logic
+   * Send email with retry logic for transient failures
    */
-  async sendEmailWithRetry(
+  async sendWithRetry(
     message: EmailMessage,
     options: {
       maxRetries?: number;
@@ -116,6 +128,16 @@ export class EmailService {
     const maxRetries = options.maxRetries || 3;
     const baseDelayMs = options.baseDelayMs || 1000;
 
+    // Validate first (don't retry validation failures)
+    const validationError = this.validateMessage(message, options.emailOptions || {});
+    if (validationError) {
+      return { success: false, error: validationError };
+    }
+
+    if (!this.isConfigured) {
+      return { success: false, error: 'SendGrid not configured' };
+    }
+
     let lastResult: EmailResult = { success: false, error: 'No attempts made' };
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -123,10 +145,10 @@ export class EmailService {
         const mailData = this.buildMailData(message, options.emailOptions || {});
         const [response] = await this.sendGridClient.send(mailData);
 
-        return {
-          success: true,
-          messageId: response.headers['x-message-id'],
-        };
+        const messageId = response.headers['x-message-id'];
+        this.logger.log(`Email sent to ${message.to} (attempt ${attempt}), messageId: ${messageId}`);
+
+        return { success: true, messageId };
       } catch (error) {
         const sendGridError = error as SendGridError;
         lastResult = this.handleSendError(sendGridError);
@@ -139,6 +161,7 @@ export class EmailService {
         // Don't wait after last attempt
         if (attempt < maxRetries) {
           const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+          this.logger.debug(`Retrying in ${delayMs}ms (attempt ${attempt}/${maxRetries})`);
           await this.delay(delayMs);
         }
       }
@@ -148,7 +171,7 @@ export class EmailService {
   }
 
   /**
-   * Send multiple emails in batch
+   * Send multiple emails in batch with concurrency control
    */
   async sendBatch(
     messages: EmailMessage[],
@@ -163,7 +186,7 @@ export class EmailService {
     for (let i = 0; i < messages.length; i += concurrency) {
       const batch = messages.slice(i, i + concurrency);
       const batchResults = await Promise.all(
-        batch.map((msg) => this.sendEmail(msg, options.emailOptions)),
+        batch.map((msg) => this.send(msg, options.emailOptions)),
       );
 
       for (const result of batchResults) {
@@ -176,6 +199,7 @@ export class EmailService {
       }
     }
 
+    this.logger.log(`Batch complete: ${successful} sent, ${failed} failed`);
     return { successful, failed, results };
   }
 
@@ -207,11 +231,27 @@ export class EmailService {
     );
   }
 
+  // Legacy method names for backwards compatibility
+  async sendEmail(message: EmailMessage, options: EmailOptions = {}): Promise<EmailResult> {
+    return this.send(message, options);
+  }
+
+  async sendEmailWithRetry(
+    message: EmailMessage,
+    options?: { maxRetries?: number; baseDelayMs?: number; emailOptions?: EmailOptions },
+  ): Promise<EmailResult> {
+    return this.sendWithRetry(message, options);
+  }
+
   /**
-   * Build SendGrid mail data object
+   * Build SendGrid mail data object with CAN-SPAM footer
    */
   private buildMailData(message: EmailMessage, options: EmailOptions): sgMail.MailDataRequired {
-    // Build base mail data
+    // Add CAN-SPAM compliant footer
+    const footer = this.buildFooter();
+    const htmlWithFooter = message.body + footer.html;
+    const textWithFooter = (message.textBody || this.stripHtml(message.body)) + footer.text;
+
     const mailData = {
       to: message.to,
       from: {
@@ -219,32 +259,28 @@ export class EmailService {
         name: options.fromName || this.senderName,
       },
       subject: message.subject,
-      html: message.body || ' ',
+      html: htmlWithFooter,
+      text: textWithFooter,
       trackingSettings: {
         clickTracking: { enable: true },
         openTracking: { enable: true },
       },
       templateId: undefined as string | undefined,
       dynamicTemplateData: undefined as Record<string, unknown> | undefined,
-      text: undefined as string | undefined,
       replyTo: undefined as string | undefined,
       headers: undefined as Record<string, string> | undefined,
       categories: undefined as string[] | undefined,
     };
 
-    // Add content - prefer template if provided
+    // Use template if provided (template has its own footer)
     if (options.templateId) {
       mailData.templateId = options.templateId;
+      mailData.html = message.body || ' ';
       if (options.templateData) {
         mailData.dynamicTemplateData = options.templateData;
       }
     }
 
-    if (message.textBody) {
-      mailData.text = message.textBody;
-    }
-
-    // Optional fields
     if (options.replyTo) {
       mailData.replyTo = options.replyTo;
     }
@@ -258,6 +294,31 @@ export class EmailService {
     }
 
     return mailData as unknown as sgMail.MailDataRequired;
+  }
+
+  /**
+   * Build CAN-SPAM compliant footer
+   */
+  private buildFooter(): { html: string; text: string } {
+    const html = `
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
+        <p>${this.companyName}<br>${this.companyAddress}</p>
+        <p><a href="{{unsubscribe_url}}" style="color: #666;">Unsubscribe</a></p>
+      </div>
+    `;
+    const text = `\n\n---\n${this.companyName}\n${this.companyAddress}\nUnsubscribe: {{unsubscribe_url}}`;
+    return { html, text };
+  }
+
+  /**
+   * Strip HTML tags for plain text version
+   */
+  private stripHtml(html: string): string {
+    return html
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   /**
@@ -307,7 +368,6 @@ export class EmailService {
     }
 
     this.logger.error(`Email send failed: ${result.error}`);
-
     return result;
   }
 

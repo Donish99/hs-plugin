@@ -38,6 +38,11 @@ export interface EmailConfig {
   fromName: string;
 }
 
+export interface CompanyConfig {
+  name: string;
+  address: string;
+}
+
 export interface SmsConfig {
   twilioAccountSid: string;
   twilioAuthToken: string;
@@ -58,6 +63,7 @@ export interface Configuration {
   email: EmailConfig;
   sms: SmsConfig;
   security: SecurityConfig;
+  company: CompanyConfig;
 }
 
 export default (): Configuration => ({
@@ -111,5 +117,9 @@ export default (): Configuration => ({
   security: {
     encryptionKey: process.env.ENCRYPTION_KEY || '',
     jwtSecret: process.env.JWT_SECRET || '',
+  },
+  company: {
+    name: process.env.COMPANY_NAME || 'Your Company',
+    address: process.env.COMPANY_ADDRESS || '123 Main St, City, State 12345',
   },
 });

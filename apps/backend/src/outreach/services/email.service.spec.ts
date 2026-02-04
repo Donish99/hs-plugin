@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { EmailService, EmailMessage, EmailResult, EmailOptions } from './email.service';
+import { EmailService, EmailMessage, EmailOptions } from './email.service';
 import {
   createMockSendGridClient,
   mockSendGridSuccessResponse,
@@ -10,33 +9,25 @@ import {
 describe('EmailService', () => {
   let service: EmailService;
   let mockSendGridClient: ReturnType<typeof createMockSendGridClient>;
-  let configService: jest.Mocked<ConfigService>;
 
-  const mockConfig = {
-    sendgridApiKey: 'SG.test-api-key',
-    senderEmail: 'noreply@example.com',
-    senderName: 'Test App',
-  };
+  const originalEnv = process.env;
 
   beforeEach(async () => {
+    // Set up test environment variables
+    process.env = {
+      ...originalEnv,
+      SENDGRID_API_KEY: 'SG.test-api-key',
+      EMAIL_FROM: 'noreply@example.com',
+      EMAIL_FROM_NAME: 'Test App',
+      COMPANY_NAME: 'Test Company',
+      COMPANY_ADDRESS: '123 Test St',
+    };
+
     mockSendGridClient = createMockSendGridClient();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailService,
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn((key: string) => {
-              const configMap: Record<string, any> = {
-                'sendgrid.apiKey': mockConfig.sendgridApiKey,
-                'sendgrid.senderEmail': mockConfig.senderEmail,
-                'sendgrid.senderName': mockConfig.senderName,
-              };
-              return configMap[key];
-            }),
-          },
-        },
         {
           provide: 'SENDGRID_CLIENT',
           useValue: mockSendGridClient,
@@ -45,10 +36,13 @@ describe('EmailService', () => {
     }).compile();
 
     service = module.get<EmailService>(EmailService);
-    configService = module.get(ConfigService);
   });
 
-  describe('sendEmail', () => {
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  describe('send', () => {
     const mockMessage: EmailMessage = {
       to: 'recipient@example.com',
       subject: 'Test Subject',
@@ -59,7 +53,7 @@ describe('EmailService', () => {
     it('should send email successfully', async () => {
       mockSendGridClient.send.mockResolvedValue(mockSendGridSuccessResponse);
 
-      const result = await service.sendEmail(mockMessage);
+      const result = await service.send(mockMessage);
 
       expect(result.success).toBe(true);
       expect(result.messageId).toBe('mock-message-id-12345');
@@ -69,13 +63,13 @@ describe('EmailService', () => {
     it('should use configured sender details', async () => {
       mockSendGridClient.send.mockResolvedValue(mockSendGridSuccessResponse);
 
-      await service.sendEmail(mockMessage);
+      await service.send(mockMessage);
 
       expect(mockSendGridClient.send).toHaveBeenCalledWith(
         expect.objectContaining({
           from: expect.objectContaining({
-            email: mockConfig.senderEmail,
-            name: mockConfig.senderName,
+            email: 'noreply@example.com',
+            name: 'Test App',
           }),
         }),
       );
@@ -84,7 +78,7 @@ describe('EmailService', () => {
     it('should include tracking settings', async () => {
       mockSendGridClient.send.mockResolvedValue(mockSendGridSuccessResponse);
 
-      await service.sendEmail(mockMessage);
+      await service.send(mockMessage);
 
       expect(mockSendGridClient.send).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -104,7 +98,7 @@ describe('EmailService', () => {
         fromName: 'Custom Sender',
       };
 
-      await service.sendEmail(mockMessage, options);
+      await service.send(mockMessage, options);
 
       expect(mockSendGridClient.send).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -120,7 +114,7 @@ describe('EmailService', () => {
         replyTo: 'reply@example.com',
       };
 
-      await service.sendEmail(mockMessage, options);
+      await service.send(mockMessage, options);
 
       expect(mockSendGridClient.send).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -139,7 +133,7 @@ describe('EmailService', () => {
         },
       };
 
-      await service.sendEmail(mockMessage, options);
+      await service.send(mockMessage, options);
 
       expect(mockSendGridClient.send).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -149,6 +143,35 @@ describe('EmailService', () => {
           }),
         }),
       );
+    });
+
+    it('should include CAN-SPAM footer in HTML', async () => {
+      mockSendGridClient.send.mockResolvedValue(mockSendGridSuccessResponse);
+
+      await service.send(mockMessage);
+
+      expect(mockSendGridClient.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          html: expect.stringContaining('Test Company'),
+          text: expect.stringContaining('Test Company'),
+        }),
+      );
+    });
+  });
+
+  describe('sendEmail (legacy method)', () => {
+    it('should work as alias for send', async () => {
+      mockSendGridClient.send.mockResolvedValue(mockSendGridSuccessResponse);
+
+      const message: EmailMessage = {
+        to: 'test@example.com',
+        subject: 'Test',
+        body: '<p>Test</p>',
+      };
+
+      const result = await service.sendEmail(message);
+
+      expect(result.success).toBe(true);
     });
   });
 
@@ -162,7 +185,7 @@ describe('EmailService', () => {
     it('should handle SendGrid API errors', async () => {
       mockSendGridClient.send.mockRejectedValue(mockSendGridErrorResponse);
 
-      const result = await service.sendEmail(mockMessage);
+      const result = await service.send(mockMessage);
 
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
@@ -171,7 +194,7 @@ describe('EmailService', () => {
     it('should include error details in result', async () => {
       mockSendGridClient.send.mockRejectedValue(mockSendGridErrorResponse);
 
-      const result = await service.sendEmail(mockMessage);
+      const result = await service.send(mockMessage);
 
       expect(result.error).toContain('verified Sender Identity');
     });
@@ -179,7 +202,7 @@ describe('EmailService', () => {
     it('should handle network errors', async () => {
       mockSendGridClient.send.mockRejectedValue(new Error('Network error'));
 
-      const result = await service.sendEmail(mockMessage);
+      const result = await service.send(mockMessage);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Network error');
@@ -196,14 +219,14 @@ describe('EmailService', () => {
       };
       mockSendGridClient.send.mockRejectedValue(rateLimitError);
 
-      const result = await service.sendEmail(mockMessage);
+      const result = await service.send(mockMessage);
 
       expect(result.success).toBe(false);
       expect(result.retryAfter).toBeDefined();
     });
   });
 
-  describe('retry logic', () => {
+  describe('sendWithRetry', () => {
     const mockMessage: EmailMessage = {
       to: 'recipient@example.com',
       subject: 'Test Subject',
@@ -215,7 +238,7 @@ describe('EmailService', () => {
         .mockRejectedValueOnce({ code: 500, message: 'Server error' })
         .mockResolvedValueOnce(mockSendGridSuccessResponse);
 
-      const result = await service.sendEmailWithRetry(mockMessage, { maxRetries: 2 });
+      const result = await service.sendWithRetry(mockMessage, { maxRetries: 2 });
 
       expect(result.success).toBe(true);
       expect(mockSendGridClient.send).toHaveBeenCalledTimes(2);
@@ -227,7 +250,7 @@ describe('EmailService', () => {
         message: 'Invalid email address',
       });
 
-      const result = await service.sendEmailWithRetry(mockMessage, { maxRetries: 3 });
+      const result = await service.sendWithRetry(mockMessage, { maxRetries: 3 });
 
       expect(result.success).toBe(false);
       expect(mockSendGridClient.send).toHaveBeenCalledTimes(1);
@@ -236,7 +259,7 @@ describe('EmailService', () => {
     it('should respect max retry limit', async () => {
       mockSendGridClient.send.mockRejectedValue({ code: 500, message: 'Server error' });
 
-      const result = await service.sendEmailWithRetry(mockMessage, { maxRetries: 3 });
+      const result = await service.sendWithRetry(mockMessage, { maxRetries: 3 });
 
       expect(result.success).toBe(false);
       expect(mockSendGridClient.send).toHaveBeenCalledTimes(3);
@@ -246,7 +269,7 @@ describe('EmailService', () => {
       const startTime = Date.now();
       mockSendGridClient.send.mockRejectedValue({ code: 500, message: 'Server error' });
 
-      await service.sendEmailWithRetry(mockMessage, {
+      await service.sendWithRetry(mockMessage, {
         maxRetries: 2,
         baseDelayMs: 50,
       });
@@ -254,6 +277,22 @@ describe('EmailService', () => {
       const elapsed = Date.now() - startTime;
       // Should wait at least baseDelay (50ms) between retries
       expect(elapsed).toBeGreaterThanOrEqual(50);
+    });
+  });
+
+  describe('sendEmailWithRetry (legacy method)', () => {
+    it('should work as alias for sendWithRetry', async () => {
+      mockSendGridClient.send.mockResolvedValue(mockSendGridSuccessResponse);
+
+      const message: EmailMessage = {
+        to: 'test@example.com',
+        subject: 'Test',
+        body: '<p>Test</p>',
+      };
+
+      const result = await service.sendEmailWithRetry(message);
+
+      expect(result.success).toBe(true);
     });
   });
 
@@ -293,7 +332,7 @@ describe('EmailService', () => {
         body: 'Test',
       };
 
-      const result = await service.sendEmail(invalidMessage);
+      const result = await service.send(invalidMessage);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Invalid email');
@@ -306,7 +345,7 @@ describe('EmailService', () => {
         body: 'Test',
       };
 
-      const result = await service.sendEmail(invalidMessage);
+      const result = await service.send(invalidMessage);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Subject is required');
@@ -319,7 +358,7 @@ describe('EmailService', () => {
         body: '',
       };
 
-      const result = await service.sendEmail(invalidMessage);
+      const result = await service.send(invalidMessage);
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Body is required');
@@ -335,7 +374,7 @@ describe('EmailService', () => {
         templateData: { name: 'John', company: 'Acme Corp' },
       };
 
-      const result = await service.sendEmail(
+      const result = await service.send(
         { to: 'test@example.com', subject: '', body: '' },
         options,
       );
@@ -350,7 +389,7 @@ describe('EmailService', () => {
     });
   });
 
-  describe('batch sending', () => {
+  describe('sendBatch', () => {
     it('should send multiple emails', async () => {
       mockSendGridClient.send.mockResolvedValue(mockSendGridSuccessResponse);
 

@@ -4,12 +4,14 @@ import { CampaignsController } from './campaigns.controller';
 import { CampaignService } from '../services/campaign.service';
 import { ScannerService } from '../services/scanner.service';
 import { DormancyDetectionService } from '../services/dormancy-detection.service';
+import { ContactsService } from '../../hubspot/services/contacts.service';
 import { CampaignStatus } from '../../entities/campaign.entity';
 
 describe('CampaignsController', () => {
   let controller: CampaignsController;
   let campaignService: jest.Mocked<CampaignService>;
   let scannerService: jest.Mocked<ScannerService>;
+  let contactsService: jest.Mocked<ContactsService>;
 
   const mockAccountId = 'acc-123';
   const mockPortalId = 12345;
@@ -30,6 +32,7 @@ describe('CampaignsController', () => {
       createCampaignFromScan: jest.fn(),
       findCampaignsByAccount: jest.fn(),
       getCampaignWithOutreachRecords: jest.fn(),
+      getCampaignProgress: jest.fn(),
       updateCampaignStatus: jest.fn(),
       startCampaign: jest.fn(),
       resumeCampaign: jest.fn(),
@@ -49,6 +52,12 @@ describe('CampaignsController', () => {
       prioritizeContacts: jest.fn(),
     };
 
+    const mockContactsService = {
+      getContactById: jest.fn(),
+      getContacts: jest.fn(),
+      searchContacts: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CampaignsController],
       providers: [
@@ -64,19 +73,32 @@ describe('CampaignsController', () => {
           provide: DormancyDetectionService,
           useValue: mockDormancyDetectionService,
         },
+        {
+          provide: ContactsService,
+          useValue: mockContactsService,
+        },
       ],
     }).compile();
 
     controller = module.get<CampaignsController>(CampaignsController);
     campaignService = module.get(CampaignService);
     scannerService = module.get(ScannerService);
+    contactsService = module.get(ContactsService);
   });
 
   describe('createCampaign', () => {
     it('should create a campaign with provided leadIds', async () => {
+      // Mock contacts service to return valid contacts
+      contactsService.getContactById.mockImplementation(async (portalId, id) => ({
+        id,
+        properties: { email: `test${id}@example.com`, firstname: 'Test', lastname: 'User' },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+
       campaignService.createCampaignFromScan.mockResolvedValue({
         campaign: mockCampaign as any,
-        outreachRecordsCreated: 10,
+        outreachRecordsCreated: 3,
         contactsSkipped: 0,
       });
 
@@ -85,6 +107,7 @@ describe('CampaignsController', () => {
         leadIds: ['1', '2', '3'],
       });
 
+      expect(contactsService.getContactById).toHaveBeenCalledTimes(3);
       expect(result.id).toBe(mockCampaignId);
       expect(result.name).toBe('Test Campaign');
     });
@@ -139,11 +162,19 @@ describe('CampaignsController', () => {
       expect(result.message).toContain('No contacts found');
     });
 
-    it('should return error when no valid contacts', async () => {
+    it('should return error when no valid contacts (contacts without email)', async () => {
+      // Mock contacts service to return contacts without email (will be filtered out)
+      contactsService.getContactById.mockImplementation(async (portalId, id) => ({
+        id,
+        properties: { firstname: 'Test', lastname: 'User' }, // No email
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+
       campaignService.createCampaignFromScan.mockResolvedValue({
         campaign: null,
         outreachRecordsCreated: 0,
-        contactsSkipped: 5,
+        contactsSkipped: 3,
       });
 
       const result = await controller.createCampaign(mockAccountId, mockPortalId, {
@@ -152,7 +183,7 @@ describe('CampaignsController', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.contactsSkipped).toBe(5);
+      expect(result.contactsSkipped).toBe(3);
     });
 
     it('should return error when no leadIds and no ruleId provided', async () => {
@@ -186,6 +217,15 @@ describe('CampaignsController', () => {
           emailsReplied: 1,
         } as any,
         outreachRecords: [],
+      });
+
+      campaignService.getCampaignProgress.mockResolvedValue({
+        total: 10,
+        pending: 5,
+        sent: 3,
+        failed: 2,
+        generating: 0,
+        percentComplete: 50,
       });
 
       const result = await controller.getCampaign(mockAccountId, mockCampaignId);
