@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   useReviews,
   useReviewStats,
@@ -9,6 +9,28 @@ import {
   useRegenerateMessage,
   useAutoApprove,
 } from '@/api/hooks/useReviews';
+
+// Regex to detect placeholders like {{name}}, [name], {name}, <name>
+const PLACEHOLDER_REGEX = /(\{\{[\w\s]+\}\}|\[[\w\s]+\]|\{[\w\s]+\}|<[\w\s]+>)/g;
+
+function extractPlaceholders(text: string): string[] {
+  const matches = text.match(PLACEHOLDER_REGEX);
+  return matches ? [...new Set(matches)] : [];
+}
+
+function highlightPlaceholders(text: string): React.ReactNode {
+  const parts = text.split(PLACEHOLDER_REGEX);
+  return parts.map((part, i) => {
+    if (PLACEHOLDER_REGEX.test(part)) {
+      return (
+        <span key={i} className="bg-yellow-200 text-yellow-800 px-1 rounded font-medium">
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
 import { ReviewItem, ReviewsListParams } from '@/api/endpoints/reviews';
 import { PageHeader } from '@/components/common/PageHeader';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -100,10 +122,16 @@ function ReviewCard({
         <div className="rounded-lg bg-muted/50 p-3">
           {review.subject && (
             <p className="text-xs font-medium text-muted-foreground mb-1">
-              Subject: {review.subject}
+              Subject: {highlightPlaceholders(review.subject)}
             </p>
           )}
-          <p className="text-sm whitespace-pre-wrap">{truncate(review.body, 200)}</p>
+          <p className="text-sm whitespace-pre-wrap">{highlightPlaceholders(truncate(review.body, 200))}</p>
+          {extractPlaceholders(review.body).length > 0 && (
+            <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+              <span className="inline-block w-2 h-2 bg-yellow-400 rounded-full"></span>
+              Contains {extractPlaceholders(review.body).length} placeholder(s) - Edit to fill in
+            </p>
+          )}
         </div>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -150,8 +178,36 @@ export function ReviewQueuePage() {
   const [editingReview, setEditingReview] = useState<ReviewItem | null>(null);
   const [editedSubject, setEditedSubject] = useState('');
   const [editedBody, setEditedBody] = useState('');
+  const [placeholderValues, setPlaceholderValues] = useState<Record<string, string>>({});
 
   const { data, isLoading } = useReviews(filters);
+
+  // Detect placeholders in the current editing content
+  const detectedPlaceholders = useMemo(() => {
+    const subjectPlaceholders = extractPlaceholders(editedSubject);
+    const bodyPlaceholders = extractPlaceholders(editedBody);
+    return [...new Set([...subjectPlaceholders, ...bodyPlaceholders])];
+  }, [editedSubject, editedBody]);
+
+  // Apply placeholder replacements
+  const applyPlaceholderReplacements = useCallback(() => {
+    let newSubject = editedSubject;
+    let newBody = editedBody;
+
+    Object.entries(placeholderValues).forEach(([placeholder, value]) => {
+      if (value.trim()) {
+        const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escapedPlaceholder, 'g');
+        newSubject = newSubject.replace(regex, value);
+        newBody = newBody.replace(regex, value);
+      }
+    });
+
+    setEditedSubject(newSubject);
+    setEditedBody(newBody);
+    setPlaceholderValues({});
+    toast({ title: 'Placeholders replaced' });
+  }, [editedSubject, editedBody, placeholderValues, toast]);
   const { data: stats } = useReviewStats();
   const approveReview = useApproveReview();
   const rejectReview = useRejectReview();
@@ -184,6 +240,7 @@ export function ReviewQueuePage() {
     setEditingReview(review);
     setEditedSubject(review.editedSubject || review.subject || '');
     setEditedBody(review.editedBody || review.body);
+    setPlaceholderValues({});
   };
 
   const handleSaveEdit = () => {
@@ -470,7 +527,7 @@ export function ReviewQueuePage() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editingReview} onOpenChange={() => setEditingReview(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Message</DialogTitle>
           </DialogHeader>
@@ -480,6 +537,48 @@ export function ReviewQueuePage() {
               <span className="font-medium">{editingReview?.contactName}</span>
               <span className="text-muted-foreground">({editingReview?.contactEmail})</span>
             </div>
+
+            {/* Placeholder Helper */}
+            {detectedPlaceholders.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 bg-yellow-400 rounded-full"></span>
+                  <span className="text-sm font-medium text-amber-800">
+                    {detectedPlaceholders.length} Placeholder(s) Detected
+                  </span>
+                </div>
+                <p className="text-xs text-amber-700">
+                  Fill in the values below and click "Apply" to replace placeholders in the message.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {detectedPlaceholders.map((placeholder) => (
+                    <div key={placeholder} className="space-y-1">
+                      <Label className="text-xs text-amber-800">{placeholder}</Label>
+                      <Input
+                        placeholder={`Enter value for ${placeholder}`}
+                        value={placeholderValues[placeholder] || ''}
+                        onChange={(e) =>
+                          setPlaceholderValues((prev) => ({
+                            ...prev,
+                            [placeholder]: e.target.value,
+                          }))
+                        }
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={applyPlaceholderReplacements}
+                  disabled={Object.values(placeholderValues).every((v) => !v.trim())}
+                  className="w-full"
+                >
+                  Apply Replacements
+                </Button>
+              </div>
+            )}
 
             {editingReview?.channel === 'email' && (
               <div className="space-y-2">
@@ -499,7 +598,11 @@ export function ReviewQueuePage() {
                 value={editedBody}
                 onChange={(e) => setEditedBody(e.target.value)}
                 rows={10}
+                className="font-mono text-sm"
               />
+              <p className="text-xs text-muted-foreground">
+                You can also edit the text directly. Placeholders are highlighted in yellow.
+              </p>
             </div>
           </div>
           <DialogFooter>

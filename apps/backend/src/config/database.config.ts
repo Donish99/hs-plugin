@@ -13,6 +13,7 @@ import { InitialSchema1706700000000 } from '../migrations/1706700000000-InitialS
 import { AddScheduledAtToOutreach1706700000001 } from '../migrations/1706700000001-AddScheduledAtToOutreach';
 import { AddAccountColumns1706700000002 } from '../migrations/1706700000002-AddAccountColumns';
 import { AddMessageVariantsAndReviewQueue1706700000003 } from '../migrations/1706700000003-AddMessageVariantsAndReviewQueue';
+import { AddReviewIntegration1738700000000 } from '../migrations/1738700000000-AddReviewIntegration';
 
 // Load environment variables for CLI commands
 config();
@@ -35,11 +36,12 @@ export const getDatabaseConfig = (configService?: ConfigService): DataSourceOpti
       AddScheduledAtToOutreach1706700000001,
       AddAccountColumns1706700000002,
       AddMessageVariantsAndReviewQueue1706700000003,
+      AddReviewIntegration1738700000000,
     ],
     migrationsTableName: 'migrations',
     synchronize: false, // Never use in production
     logging: process.env.NODE_ENV === 'development',
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
     extra: {
       // Connection pool settings
       max: 20,

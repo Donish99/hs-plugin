@@ -89,6 +89,9 @@ export class Campaign {
   @Column({ type: 'timestamp', nullable: true, name: 'completed_at' })
   completedAt?: Date;
 
+  @Column({ type: 'boolean', default: false, name: 'requires_review' })
+  requiresReview: boolean = false;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 

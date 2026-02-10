@@ -22,6 +22,7 @@ export interface CreateCampaignFromScanDto {
   scanResult: ScanResult;
   name?: string;
   channel?: OutreachChannel;
+  requiresReview?: boolean;
 }
 
 /**
@@ -63,6 +64,7 @@ export interface CampaignWithOutreach {
 export interface CampaignProgress {
   total: number;
   pending: number;
+  pendingReview: number;
   sent: number;
   failed: number;
   generating: number;
@@ -72,6 +74,7 @@ export interface CampaignProgress {
 // Statuses that indicate an active (not completed) outreach
 const ACTIVE_OUTREACH_STATUSES = [
   OutreachStatus.PENDING,
+  OutreachStatus.PENDING_REVIEW,
   OutreachStatus.APPROVED,
   OutreachStatus.SENT,
   OutreachStatus.DELIVERED,
@@ -97,7 +100,7 @@ export class CampaignService {
    * Create a campaign from scan results
    */
   async createCampaignFromScan(dto: CreateCampaignFromScanDto): Promise<CampaignCreationResult> {
-    const { accountId, scanResult, name, channel = OutreachChannel.EMAIL } = dto;
+    const { accountId, scanResult, name, channel = OutreachChannel.EMAIL, requiresReview = false } = dto;
 
     // Handle empty scan results
     if (scanResult.contacts.length === 0) {
@@ -130,6 +133,7 @@ export class CampaignService {
       name: campaignName,
       status: CampaignStatus.DRAFT,
       totalContacts: validContacts.length,
+      requiresReview,
     });
 
     const savedCampaign = await this.campaignRepository.save(campaign);
@@ -142,7 +146,7 @@ export class CampaignService {
     await this.outreachRepository.save(outreachRecords);
 
     this.logger.log(
-      `Created campaign ${savedCampaign.id} with ${outreachRecords.length} outreach records`,
+      `Created campaign ${savedCampaign.id} with ${outreachRecords.length} outreach records (requiresReview: ${requiresReview})`,
     );
 
     return {
@@ -484,6 +488,7 @@ export class CampaignService {
 
     const total = records.length;
     let pending = 0;
+    let pendingReview = 0;
     let sent = 0;
     let failed = 0;
     let generating = 0;
@@ -492,6 +497,9 @@ export class CampaignService {
       switch (record.status) {
         case OutreachStatus.PENDING:
           pending++;
+          break;
+        case OutreachStatus.PENDING_REVIEW:
+          pendingReview++;
           break;
         case OutreachStatus.APPROVED:
           generating++;
@@ -516,6 +524,7 @@ export class CampaignService {
     return {
       total,
       pending,
+      pendingReview,
       sent,
       failed,
       generating,

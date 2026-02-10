@@ -269,6 +269,7 @@ export function useCampaignEvents(
                   progress: {
                     total: completedData.total,
                     pending: 0,
+                    pendingReview: 0,
                     sent: completedData.sent,
                     failed: completedData.failed,
                     generating: 0,

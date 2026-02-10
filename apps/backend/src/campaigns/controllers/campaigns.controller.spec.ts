@@ -222,6 +222,7 @@ describe('CampaignsController', () => {
       campaignService.getCampaignProgress.mockResolvedValue({
         total: 10,
         pending: 5,
+        pendingReview: 0,
         sent: 3,
         failed: 2,
         generating: 0,

@@ -22,6 +22,15 @@ describe('OutreachRecord Entity', () => {
   });
 
   describe('status tracking', () => {
+    it('should support PENDING_REVIEW status for review queue flow', () => {
+      const record = new OutreachRecord();
+      record.status = OutreachStatus.PENDING_REVIEW;
+
+      expect(record.status).toBe(OutreachStatus.PENDING_REVIEW);
+      expect(record.isDelivered()).toBe(false);
+      expect(record.isFailed()).toBe(false);
+    });
+
     it('should track sent status', () => {
       const record = new OutreachRecord();
       record.status = OutreachStatus.SENT;

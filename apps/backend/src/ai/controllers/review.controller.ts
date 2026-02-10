@@ -57,6 +57,19 @@ interface AutoApproveDto {
   maxPriority?: number;
 }
 
+interface ApproveAndSendDto {
+  reviewedBy: string;
+  portalId: number;
+  editedSubject?: string;
+  editedBody?: string;
+}
+
+interface BulkApproveAndSendDto {
+  reviewIds: string[];
+  reviewedBy: string;
+  portalId: number;
+}
+
 /**
  * Controller for human review queue endpoints
  */
@@ -261,5 +274,65 @@ export class ReviewController {
     };
 
     return this.reviewService.autoApproveByRules(accountId, rules);
+  }
+
+  /**
+   * Approve a review and immediately send the message
+   * This is the primary endpoint for review-required campaign flow
+   */
+  @Post(':reviewId/approve-and-send')
+  async approveAndSend(
+    @AccountId() accountId: string,
+    @Param('reviewId') reviewId: string,
+    @Body() dto: ApproveAndSendDto,
+  ) {
+    if (!dto.reviewedBy || dto.reviewedBy.trim() === '') {
+      throw new BadRequestException('reviewedBy is required');
+    }
+
+    if (!dto.portalId || typeof dto.portalId !== 'number') {
+      throw new BadRequestException('portalId is required and must be a number');
+    }
+
+    const result = await this.reviewService.approveReviewAndSend(
+      reviewId,
+      dto.reviewedBy,
+      dto.portalId,
+      dto.editedSubject,
+      dto.editedBody,
+    );
+
+    return {
+      review: result.review,
+      outreachRecordId: result.outreachRecordId,
+      messageSendQueued: result.jobQueued,
+    };
+  }
+
+  /**
+   * Bulk approve reviews and send messages
+   */
+  @Post('bulk/approve-and-send')
+  async bulkApproveAndSend(
+    @AccountId() accountId: string,
+    @Body() dto: BulkApproveAndSendDto,
+  ) {
+    if (!dto.reviewIds || dto.reviewIds.length === 0) {
+      throw new BadRequestException('reviewIds array is required');
+    }
+
+    if (!dto.reviewedBy || dto.reviewedBy.trim() === '') {
+      throw new BadRequestException('reviewedBy is required');
+    }
+
+    if (!dto.portalId || typeof dto.portalId !== 'number') {
+      throw new BadRequestException('portalId is required and must be a number');
+    }
+
+    return this.reviewService.bulkApproveAndSend(
+      dto.reviewIds,
+      dto.reviewedBy,
+      dto.portalId,
+    );
   }
 }

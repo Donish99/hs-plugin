@@ -17,6 +17,7 @@ import { MessageVariant } from './message-variant.entity';
  */
 export enum OutreachStatus {
   PENDING = 'pending',
+  PENDING_REVIEW = 'pending_review',
   APPROVED = 'approved',
   SENT = 'sent',
   DELIVERED = 'delivered',

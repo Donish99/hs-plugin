@@ -31,6 +31,7 @@ interface CreateCampaignDto {
   tone?: 'professional' | 'friendly' | 'casual';
   scheduledAt?: string;
   enableABTest?: boolean;
+  requiresReview?: boolean;
 }
 
 /**
@@ -103,6 +104,7 @@ export class CampaignsController {
           scanResult,
           name: dto.name,
           channel,
+          requiresReview: dto.requiresReview,
         });
 
         if (!result.campaign) {
@@ -128,6 +130,7 @@ export class CampaignsController {
           clickCount: 0,
           replyCount: 0,
           tone: dto.tone || 'professional',
+          requiresReview: result.campaign.requiresReview,
           scheduledAt: dto.scheduledAt,
           createdAt: result.campaign.createdAt?.toISOString(),
           updatedAt: result.campaign.createdAt?.toISOString(),
@@ -209,6 +212,7 @@ export class CampaignsController {
         scanResult,
         name: dto.name,
         channel,
+        requiresReview: dto.requiresReview,
       });
 
       if (!result.campaign) {
@@ -234,6 +238,7 @@ export class CampaignsController {
         clickCount: 0,
         replyCount: 0,
         tone: dto.tone || 'professional',
+        requiresReview: result.campaign.requiresReview,
         scheduledAt: dto.scheduledAt,
         createdAt: result.campaign.createdAt?.toISOString(),
         updatedAt: result.campaign.createdAt?.toISOString(),

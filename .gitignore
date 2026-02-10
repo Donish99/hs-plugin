@@ -12,6 +12,7 @@ coverage/
 .env
 .env.local
 .env.*.local
+.env.production
 
 # IDE
 .idea/
@@ -45,7 +46,7 @@ tmp/
 temp/
 
 # pnpm
-pnpm-lock.yaml
+# Note: pnpm-lock.yaml is NOT gitignored — required for Docker builds (--frozen-lockfile)
 
 # HubSpot Extensions
 apps/hubspot-extensions/.env

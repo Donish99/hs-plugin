@@ -18,6 +18,7 @@ export interface Campaign {
   clickCount: number;
   replyCount: number;
   tone: string;
+  requiresReview: boolean;
   scheduledAt?: string;
   startedAt?: string;
   completedAt?: string;
@@ -28,6 +29,7 @@ export interface Campaign {
 export interface CampaignProgress {
   total: number;
   pending: number;
+  pendingReview: number;
   sent: number;
   failed: number;
   generating: number;
@@ -60,6 +62,7 @@ export interface CreateCampaignInput {
   tone?: 'professional' | 'friendly' | 'casual';
   scheduledAt?: string;
   enableABTest?: boolean;
+  requiresReview?: boolean;
 }
 
 export interface UpdateCampaignInput {
@@ -76,7 +79,7 @@ export interface CampaignsListParams {
   channel?: CampaignChannel;
 }
 
-export type OutreachStatus = 'pending' | 'approved' | 'sent' | 'delivered' | 'opened' | 'clicked' | 'replied' | 'bounced' | 'failed';
+export type OutreachStatus = 'pending' | 'pending_review' | 'approved' | 'sent' | 'delivered' | 'opened' | 'clicked' | 'replied' | 'bounced' | 'failed';
 
 export interface OutreachRecord {
   id: string;

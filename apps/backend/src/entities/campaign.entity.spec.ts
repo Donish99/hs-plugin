@@ -26,6 +26,19 @@ describe('Campaign Entity', () => {
       expect(campaign.emailsReplied).toBe(0);
       expect(campaign.meetingsBooked).toBe(0);
     });
+
+    it('should have default requiresReview of false', () => {
+      const campaign = new Campaign();
+
+      expect(campaign.requiresReview).toBe(false);
+    });
+
+    it('should allow setting requiresReview to true', () => {
+      const campaign = new Campaign();
+      campaign.requiresReview = true;
+
+      expect(campaign.requiresReview).toBe(true);
+    });
   });
 
   describe('status transitions', () => {

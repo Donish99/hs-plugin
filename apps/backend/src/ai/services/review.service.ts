@@ -1,8 +1,13 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InjectQueue } from '@nestjs/bull';
 import { Repository } from 'typeorm';
+import { Queue } from 'bull';
 import { ReviewQueue, ReviewStatus } from '../../entities/review-queue.entity';
+import { OutreachRecord, OutreachStatus } from '../../entities/outreach-record.entity';
+import { Campaign } from '../../entities/campaign.entity';
 import { VariantService } from './variant.service';
+import { QUEUE_NAMES } from '../../config/redis.config';
 
 export interface QueueMessageDto {
   variantId: string;
@@ -48,6 +53,19 @@ export interface RegenerationResult {
   variantId: string;
 }
 
+export interface ApproveAndSendResult {
+  review: ReviewQueue;
+  outreachRecordId?: string;
+  jobQueued: boolean;
+}
+
+export interface BulkApproveAndSendResult {
+  approved: number;
+  failed: number;
+  jobsQueued: number;
+  errors: string[];
+}
+
 /**
  * Service for managing the human review queue
  */
@@ -58,6 +76,12 @@ export class ReviewService {
   constructor(
     @InjectRepository(ReviewQueue)
     private readonly reviewRepository: Repository<ReviewQueue>,
+    @InjectRepository(OutreachRecord)
+    private readonly outreachRepository: Repository<OutreachRecord>,
+    @InjectRepository(Campaign)
+    private readonly campaignRepository: Repository<Campaign>,
+    @InjectQueue(QUEUE_NAMES.SEND_CAMPAIGN)
+    private readonly sendCampaignQueue: Queue,
     private readonly variantService: VariantService,
   ) {}
 
@@ -391,5 +415,182 @@ export class ReviewService {
       order: { priority: 'DESC', createdAt: 'ASC' },
       take: options.limit || 50,
     });
+  }
+
+  /**
+   * Approve a review and immediately queue the message for sending
+   * This is the main flow for review-required campaigns
+   */
+  async approveReviewAndSend(
+    reviewId: string,
+    reviewedBy: string,
+    portalId: number,
+    editedSubject?: string,
+    editedBody?: string,
+  ): Promise<ApproveAndSendResult> {
+    const review = await this.reviewRepository.findOne({
+      where: { id: reviewId },
+    });
+
+    if (!review) {
+      throw new NotFoundException('Review not found');
+    }
+
+    // Check if already processed
+    if (review.status !== ReviewStatus.PENDING) {
+      return {
+        review,
+        jobQueued: false,
+      };
+    }
+
+    // Determine if this is an edit or plain approval
+    const isEdited = editedSubject !== undefined || editedBody !== undefined;
+
+    if (isEdited) {
+      review.status = ReviewStatus.EDITED;
+      review.editedSubject = editedSubject;
+      review.editedBody = editedBody;
+    } else {
+      review.status = ReviewStatus.APPROVED;
+    }
+
+    review.reviewedBy = reviewedBy;
+    review.reviewedAt = new Date();
+
+    await this.reviewRepository.save(review);
+
+    // Mark the variant as selected
+    await this.variantService.selectVariant(review.variantId);
+
+    // Find the linked OutreachRecord by variantId
+    const outreachRecord = await this.outreachRepository.findOne({
+      where: { variantId: review.variantId },
+    });
+
+    if (!outreachRecord) {
+      this.logger.warn(`No outreach record found for variant ${review.variantId}`);
+      return {
+        review,
+        jobQueued: false,
+      };
+    }
+
+    // Apply edits to the outreach record if needed
+    if (isEdited) {
+      if (editedSubject) {
+        outreachRecord.subject = editedSubject;
+      }
+      if (editedBody) {
+        outreachRecord.bodyText = editedBody;
+        outreachRecord.bodyHtml = this.convertToHtml(editedBody);
+      }
+    }
+
+    // Update outreach status to APPROVED (ready for sending)
+    outreachRecord.status = OutreachStatus.APPROVED;
+    await this.outreachRepository.save(outreachRecord);
+
+    // Get campaign info for the job
+    const campaign = await this.campaignRepository.findOne({
+      where: { id: outreachRecord.campaignId },
+    });
+
+    if (!campaign) {
+      this.logger.warn(`Campaign not found for outreach record ${outreachRecord.id}`);
+      return {
+        review,
+        outreachRecordId: outreachRecord.id,
+        jobQueued: false,
+      };
+    }
+
+    // Queue the send-approved-single job
+    await this.sendCampaignQueue.add(
+      'send-approved-single',
+      {
+        type: 'send-approved-single',
+        outreachRecordId: outreachRecord.id,
+        campaignId: campaign.id,
+        accountId: campaign.accountId,
+        portalId,
+      },
+      {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000,
+        },
+      },
+    );
+
+    this.logger.log(
+      `Review ${reviewId} approved and message queued for sending: outreach ${outreachRecord.id}`,
+    );
+
+    return {
+      review,
+      outreachRecordId: outreachRecord.id,
+      jobQueued: true,
+    };
+  }
+
+  /**
+   * Bulk approve reviews and queue messages for sending
+   */
+  async bulkApproveAndSend(
+    reviewIds: string[],
+    reviewedBy: string,
+    portalId: number,
+  ): Promise<BulkApproveAndSendResult> {
+    let approved = 0;
+    let failed = 0;
+    let jobsQueued = 0;
+    const errors: string[] = [];
+
+    for (const reviewId of reviewIds) {
+      try {
+        const result = await this.approveReviewAndSend(reviewId, reviewedBy, portalId);
+        if (result.review.status === ReviewStatus.APPROVED || result.review.status === ReviewStatus.EDITED) {
+          approved++;
+          if (result.jobQueued) {
+            jobsQueued++;
+          }
+        } else {
+          failed++;
+          errors.push(`Review ${reviewId} was already processed`);
+        }
+      } catch (error: any) {
+        failed++;
+        errors.push(`Review ${reviewId}: ${error.message}`);
+      }
+    }
+
+    this.logger.log(
+      `Bulk approve and send: ${approved} approved, ${jobsQueued} jobs queued, ${failed} failed`,
+    );
+
+    return { approved, failed, jobsQueued, errors };
+  }
+
+  /**
+   * Convert plain text to HTML with basic formatting
+   */
+  private convertToHtml(text: string): string {
+    if (!text) return '';
+
+    // Escape HTML entities
+    let html = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    // Convert newlines to <br> and wrap in paragraphs
+    const paragraphs = html.split(/\n\n+/);
+    html = paragraphs
+      .map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+      .join('\n');
+
+    return html;
   }
 }

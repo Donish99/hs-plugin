@@ -36,6 +36,7 @@ const campaignSchema = z.object({
   tone: z.enum(['professional', 'friendly', 'casual']),
   ruleId: z.string().optional(),
   enableABTest: z.boolean().default(false),
+  requiresReview: z.boolean().default(true),
 });
 
 type CampaignFormData = z.infer<typeof campaignSchema>;
@@ -82,6 +83,7 @@ export function CreateCampaignWizard() {
       channel: 'email',
       tone: 'professional',
       enableABTest: false,
+      requiresReview: true,
     },
   });
 
@@ -109,6 +111,7 @@ export function CreateCampaignWizard() {
       await createCampaign.mutateAsync({
         ...data,
         leadIds: targetingMode === 'manual' ? selectedLeadIds : undefined,
+        requiresReview: data.requiresReview,
       });
       toast({ title: 'Campaign created', description: 'Your campaign is ready to launch.' });
       navigate('/campaigns');
@@ -440,6 +443,23 @@ export function CreateCampaignWizard() {
                   </p>
                 </div>
               </div>
+
+              <div className="flex items-center gap-3 rounded-lg border p-4 border-blue-200 bg-blue-50/50">
+                <Checkbox
+                  id="requiresReview"
+                  checked={formValues.requiresReview}
+                  onCheckedChange={(checked) => setValue('requiresReview', !!checked)}
+                />
+                <div className="flex-1">
+                  <Label htmlFor="requiresReview" className="cursor-pointer">
+                    Require Human Review
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    AI-generated messages will be queued for review before sending. You can approve, edit, or reject each message.
+                  </p>
+                </div>
+                <Badge variant="secondary" className="shrink-0">Recommended</Badge>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -478,6 +498,16 @@ export function CreateCampaignWizard() {
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">A/B Testing</p>
                   <p className="font-medium">{formValues.enableABTest ? 'Enabled' : 'Disabled'}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Human Review</p>
+                  <p className="font-medium">
+                    {formValues.requiresReview ? (
+                      <span className="text-blue-600">Required before sending</span>
+                    ) : (
+                      <span className="text-amber-600">Direct send (no review)</span>
+                    )}
+                  </p>
                 </div>
                 {formValues.description && (
                   <div className="space-y-1 md:col-span-2">

@@ -3,13 +3,16 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bull';
 import { Repository } from 'typeorm';
 import { Job, Queue } from 'bull';
-import { SendCampaignProcessor, ProcessCampaignJobData, SendMessageJobData } from './send-campaign.processor';
+import { SendCampaignProcessor, ProcessCampaignJobData, SendMessageJobData, GenerateForReviewJobData } from './send-campaign.processor';
 import { JobStatus } from './base.processor';
 import { QUEUE_NAMES } from '../config/redis.config';
 import { GeneratorService } from '../ai/services/generator.service';
+import { VariantService } from '../ai/services/variant.service';
+import { ReviewService } from '../ai/services/review.service';
 import { EmailService } from '../outreach/services/email.service';
 import { SmsService } from '../outreach/services/sms.service';
 import { HubspotLoggerService } from '../outreach/services/hubspot-logger.service';
+import { EventsService } from '../events/events.service';
 import { OutreachRecord, OutreachStatus, OutreachChannel } from '../entities/outreach-record.entity';
 import { Campaign, CampaignStatus } from '../entities/campaign.entity';
 
@@ -19,17 +22,22 @@ describe('SendCampaignProcessor', () => {
   let outreachRepository: jest.Mocked<Repository<OutreachRecord>>;
   let campaignRepository: jest.Mocked<Repository<Campaign>>;
   let generatorService: jest.Mocked<GeneratorService>;
+  let variantService: jest.Mocked<VariantService>;
+  let reviewService: jest.Mocked<ReviewService>;
   let emailService: jest.Mocked<EmailService>;
   let smsService: jest.Mocked<SmsService>;
   let hubspotLogger: jest.Mocked<HubspotLoggerService>;
+  let eventsService: jest.Mocked<EventsService>;
 
   // Factory functions to create fresh mock data for each test
-  const createMockCampaign = (): Partial<Campaign> => ({
+  const createMockCampaign = (overrides?: Partial<Campaign>): Partial<Campaign> => ({
     id: 'campaign-123',
     accountId: 'account-456',
     status: CampaignStatus.RUNNING,
     emailsSent: 0,
     totalContacts: 2,
+    requiresReview: false,
+    ...overrides,
   });
 
   const createMockOutreachRecord = (): Partial<OutreachRecord> => ({
@@ -67,6 +75,18 @@ describe('SendCampaignProcessor', () => {
       generateMessage: jest.fn(),
     };
 
+    const mockVariantService = {
+      storeVariants: jest.fn().mockResolvedValue({
+        variantGroupId: 'group-123',
+        variants: [{ id: 'variant-123' }],
+      }),
+      markVariantAsSent: jest.fn().mockResolvedValue({}),
+    };
+
+    const mockReviewService = {
+      queueForReview: jest.fn().mockResolvedValue({ id: 'review-123' }),
+    };
+
     const mockEmailService = {
       sendEmailWithRetry: jest.fn(),
     };
@@ -78,6 +98,14 @@ describe('SendCampaignProcessor', () => {
     const mockHubspotLogger = {
       logEmailSent: jest.fn().mockResolvedValue({ success: true }),
       logSmsSent: jest.fn().mockResolvedValue({ success: true }),
+    };
+
+    const mockEventsService = {
+      emitMessageGenerating: jest.fn(),
+      emitMessageGenerated: jest.fn(),
+      emitMessageSent: jest.fn(),
+      emitMessageFailed: jest.fn(),
+      emitCampaignCompleted: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -100,6 +128,14 @@ describe('SendCampaignProcessor', () => {
           useValue: mockGeneratorService,
         },
         {
+          provide: VariantService,
+          useValue: mockVariantService,
+        },
+        {
+          provide: ReviewService,
+          useValue: mockReviewService,
+        },
+        {
           provide: EmailService,
           useValue: mockEmailService,
         },
@@ -111,6 +147,10 @@ describe('SendCampaignProcessor', () => {
           provide: HubspotLoggerService,
           useValue: mockHubspotLogger,
         },
+        {
+          provide: EventsService,
+          useValue: mockEventsService,
+        },
       ],
     }).compile();
 
@@ -119,9 +159,12 @@ describe('SendCampaignProcessor', () => {
     outreachRepository = module.get(getRepositoryToken(OutreachRecord));
     campaignRepository = module.get(getRepositoryToken(Campaign));
     generatorService = module.get(GeneratorService);
+    variantService = module.get(VariantService);
+    reviewService = module.get(ReviewService);
     emailService = module.get(EmailService);
     smsService = module.get(SmsService);
     hubspotLogger = module.get(HubspotLoggerService);
+    eventsService = module.get(EventsService);
   });
 
   describe('processCampaign', () => {
@@ -190,9 +233,12 @@ describe('SendCampaignProcessor', () => {
     });
 
     it('should mark campaign as completed when no pending records', async () => {
-      campaignRepository.findOne.mockResolvedValue(createMockCampaign() as Campaign);
+      campaignRepository.findOne.mockResolvedValue(createMockCampaign({ requiresReview: false }) as Campaign);
       outreachRepository.find.mockResolvedValue([]);
-      outreachRepository.count.mockResolvedValue(5); // Has processed records
+      // First count call checks remaining pending/pending_review, second checks total records
+      outreachRepository.count
+        .mockResolvedValueOnce(0) // No remaining pending records
+        .mockResolvedValueOnce(5); // Has processed records
 
       const job = createMockJob({
         type: 'process-campaign',
@@ -585,6 +631,164 @@ describe('SendCampaignProcessor', () => {
 
       expect(result.status).toBe(JobStatus.FAILED);
       expect(result.error).toContain('Unknown job type');
+    });
+  });
+
+  describe('processCampaign with requiresReview', () => {
+    const createMockJob = (data: ProcessCampaignJobData): Partial<Job<ProcessCampaignJobData>> => ({
+      id: 'job-1',
+      data,
+      progress: jest.fn().mockResolvedValue(undefined),
+      attemptsMade: 0,
+    });
+
+    it('should queue generate-for-review jobs when campaign requires review', async () => {
+      campaignRepository.findOne.mockResolvedValue(createMockCampaign({ requiresReview: true }) as Campaign);
+      outreachRepository.find.mockResolvedValue([
+        { ...createMockOutreachRecord(), id: 'outreach-1' },
+        { ...createMockOutreachRecord(), id: 'outreach-2' },
+      ] as OutreachRecord[]);
+
+      const job = createMockJob({
+        type: 'process-campaign',
+        campaignId: 'campaign-123',
+        accountId: 'account-456',
+        portalId: 12345,
+      });
+
+      const result = await processor.processCampaign(job as Job<ProcessCampaignJobData>);
+
+      expect(result.status).toBe(JobStatus.COMPLETED);
+      expect(result.data?.queuedCount).toBe(2);
+      expect(result.data?.requiresReview).toBe(true);
+      expect(sendCampaignQueue.add).toHaveBeenCalledTimes(2);
+      expect(sendCampaignQueue.add).toHaveBeenCalledWith(
+        'generate-for-review',
+        expect.objectContaining({ type: 'generate-for-review' }),
+        expect.any(Object),
+      );
+    });
+
+    it('should queue send-message jobs when campaign does not require review', async () => {
+      campaignRepository.findOne.mockResolvedValue(createMockCampaign({ requiresReview: false }) as Campaign);
+      outreachRepository.find.mockResolvedValue([
+        { ...createMockOutreachRecord(), id: 'outreach-1' },
+      ] as OutreachRecord[]);
+
+      const job = createMockJob({
+        type: 'process-campaign',
+        campaignId: 'campaign-123',
+        accountId: 'account-456',
+        portalId: 12345,
+      });
+
+      const result = await processor.processCampaign(job as Job<ProcessCampaignJobData>);
+
+      expect(result.status).toBe(JobStatus.COMPLETED);
+      expect(sendCampaignQueue.add).toHaveBeenCalledWith(
+        'send-message',
+        expect.objectContaining({ type: 'send-message' }),
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe('generateForReview', () => {
+    const createMockJob = (data: GenerateForReviewJobData): Partial<Job<GenerateForReviewJobData>> => ({
+      id: 'job-1',
+      data,
+      progress: jest.fn().mockResolvedValue(undefined),
+      attemptsMade: 0,
+    });
+
+    it('should generate message, store variant, and queue for review', async () => {
+      outreachRepository.findOne.mockResolvedValue(createMockOutreachRecord() as OutreachRecord);
+      campaignRepository.findOne.mockResolvedValue(createMockCampaign({ requiresReview: true }) as Campaign);
+
+      generatorService.generateMessage.mockResolvedValue({
+        message: { subject: 'Test Subject', body: 'Test Body' },
+        tone: 'professional',
+        usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+        context: {} as any,
+      });
+
+      const job = createMockJob({
+        type: 'generate-for-review',
+        outreachRecordId: 'outreach-789',
+        campaignId: 'campaign-123',
+        accountId: 'account-456',
+        portalId: 12345,
+      });
+
+      const result = await processor.generateForReview(job as Job<GenerateForReviewJobData>);
+
+      expect(result.status).toBe(JobStatus.COMPLETED);
+      expect(result.message).toContain('queued for review');
+      expect(generatorService.generateMessage).toHaveBeenCalled();
+      expect(variantService.storeVariants).toHaveBeenCalledWith(
+        'account-456',
+        12345,
+        expect.arrayContaining([
+          expect.objectContaining({ subject: 'Test Subject', body: 'Test Body' }),
+        ]),
+        expect.any(Object),
+      );
+      expect(reviewService.queueForReview).toHaveBeenCalledWith(
+        'account-456',
+        expect.objectContaining({
+          variantId: 'variant-123',
+          campaignId: 'campaign-123',
+        }),
+      );
+      expect(outreachRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: OutreachStatus.PENDING_REVIEW,
+        }),
+      );
+    });
+
+    it('should skip if outreach record already processed', async () => {
+      outreachRepository.findOne.mockResolvedValue({
+        ...createMockOutreachRecord(),
+        status: OutreachStatus.SENT,
+      } as OutreachRecord);
+
+      const job = createMockJob({
+        type: 'generate-for-review',
+        outreachRecordId: 'outreach-789',
+        campaignId: 'campaign-123',
+        accountId: 'account-456',
+        portalId: 12345,
+      });
+
+      const result = await processor.generateForReview(job as Job<GenerateForReviewJobData>);
+
+      expect(result.status).toBe(JobStatus.COMPLETED);
+      expect(result.message).toContain('already processed');
+      expect(generatorService.generateMessage).not.toHaveBeenCalled();
+    });
+
+    it('should fail if AI generation fails', async () => {
+      outreachRepository.findOne.mockResolvedValue(createMockOutreachRecord() as OutreachRecord);
+      campaignRepository.findOne.mockResolvedValue(createMockCampaign({ requiresReview: true }) as Campaign);
+      generatorService.generateMessage.mockRejectedValue(new Error('OpenAI API error'));
+
+      const job = createMockJob({
+        type: 'generate-for-review',
+        outreachRecordId: 'outreach-789',
+        campaignId: 'campaign-123',
+        accountId: 'account-456',
+        portalId: 12345,
+      });
+
+      const result = await processor.generateForReview(job as Job<GenerateForReviewJobData>);
+
+      expect(result.status).toBe(JobStatus.FAILED);
+      expect(result.error).toContain('OpenAI API error');
+      expect(outreachRepository.update).toHaveBeenCalledWith(
+        { id: 'outreach-789' },
+        { status: OutreachStatus.FAILED },
+      );
     });
   });
 });

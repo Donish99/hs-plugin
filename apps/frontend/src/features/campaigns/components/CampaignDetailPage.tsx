@@ -219,6 +219,7 @@ export function CampaignDetailPage() {
   const progressData = campaign.progress || {
     total: campaign.targetCount,
     pending: campaign.targetCount - campaign.sentCount,
+    pendingReview: 0,
     sent: campaign.sentCount,
     failed: 0,
     generating: 0,
