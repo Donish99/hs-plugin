@@ -249,7 +249,12 @@ export const leadsApi = {
   }> => {
     const response = await apiClient.post(
       withAccountId('/dormant-leads/campaign'),
-      input
+      {
+        contactIds: input.leadIds,
+        name: input.name,
+        channel: input.channel,
+        tone: input.tone,
+      }
     );
     return response.data;
   },
