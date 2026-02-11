@@ -71,22 +71,11 @@ services:
     restart: unless-stopped
     ports:
       - "4501:443"
-      - "4580:80"
     depends_on:
       - backend
     volumes:
-      - certbot-etc:/etc/letsencrypt
-      - certbot-var:/var/www/certbot
-
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - certbot-etc:/etc/letsencrypt
-      - certbot-var:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+      - /etc/letsencrypt:/etc/letsencrypt:ro
 
 volumes:
   pgdata:
   redisdata:
-  certbot-etc:
-  certbot-var:
