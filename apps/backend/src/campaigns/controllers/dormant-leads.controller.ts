@@ -120,8 +120,22 @@ export class DormantLeadsController {
       scanResults = await this.scannerService.scanAllRules(accountId, portalId, {});
     }
 
-    // Combine contacts from all scan results
-    const allContacts = scanResults.flatMap((r) => r.contacts);
+    // Combine contacts from all scan results, tagging each with its matched rule
+    const allContacts: HubSpotContact[] = [];
+    for (const sr of scanResults) {
+      let ruleName = 'Unknown';
+      try {
+        const rule = await this.rulesService.findOne(accountId, sr.ruleId);
+        ruleName = rule.name;
+      } catch {
+        // Rule may have been deleted
+      }
+      for (const contact of sr.contacts) {
+        contact.properties._matchedRuleId = sr.ruleId;
+        contact.properties._matchedRuleName = ruleName;
+        allContacts.push(contact);
+      }
+    }
 
     if (allContacts.length === 0) {
       return {
@@ -167,9 +181,23 @@ export class DormantLeadsController {
     @PortalId() portalId: number,
     @Param('contactId') contactId: string,
   ): Promise<ContactDetailsResponse> {
-    // Scan to find the contact
+    // Scan to find the contact, preserving rule association
     const scanResults = await this.scannerService.scanAllRules(accountId, portalId, {});
-    const allContacts = scanResults.flatMap((r) => r.contacts);
+    const allContacts: HubSpotContact[] = [];
+    for (const sr of scanResults) {
+      let ruleName = 'Unknown';
+      try {
+        const rule = await this.rulesService.findOne(accountId, sr.ruleId);
+        ruleName = rule.name;
+      } catch {
+        // Rule may have been deleted
+      }
+      for (const contact of sr.contacts) {
+        contact.properties._matchedRuleId = sr.ruleId;
+        contact.properties._matchedRuleName = ruleName;
+        allContacts.push(contact);
+      }
+    }
 
     const contact = allContacts.find((c) => c.id === contactId);
     if (!contact) {
@@ -275,7 +303,23 @@ export class DormantLeadsController {
       scanResults = await this.scannerService.scanAllRules(accountId, portalId, {});
     }
 
-    const allContacts = scanResults.flatMap((r) => r.contacts);
+    // Tag contacts with matched rule info
+    const allContacts: HubSpotContact[] = [];
+    for (const sr of scanResults) {
+      let ruleName = 'Unknown';
+      try {
+        const rule = await this.rulesService.findOne(accountId, sr.ruleId);
+        ruleName = rule.name;
+      } catch {
+        // Rule may have been deleted
+      }
+      for (const contact of sr.contacts) {
+        contact.properties._matchedRuleId = sr.ruleId;
+        contact.properties._matchedRuleName = ruleName;
+        allContacts.push(contact);
+      }
+    }
+
     const prioritizedContacts = this.dormancyDetectionService.prioritizeContacts(allContacts, {
       sortBy,
       sortOrder,
@@ -341,7 +385,23 @@ export class DormantLeadsController {
       scanResults = await this.scannerService.scanAllRules(accountId, portalId, {});
     }
 
-    const allContacts = scanResults.flatMap((r) => r.contacts);
+    // Tag contacts with matched rule info
+    const allContacts: HubSpotContact[] = [];
+    for (const sr of scanResults) {
+      let ruleName = 'Unknown';
+      try {
+        const rule = await this.rulesService.findOne(accountId, sr.ruleId);
+        ruleName = rule.name;
+      } catch {
+        // Rule may have been deleted
+      }
+      for (const contact of sr.contacts) {
+        contact.properties._matchedRuleId = sr.ruleId;
+        contact.properties._matchedRuleName = ruleName;
+        allContacts.push(contact);
+      }
+    }
+
     const prioritizedContacts = this.dormancyDetectionService.prioritizeContacts(allContacts, {
       sortBy: 'composite',
       sortOrder: 'desc',

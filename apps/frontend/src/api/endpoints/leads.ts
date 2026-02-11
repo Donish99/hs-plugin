@@ -113,6 +113,8 @@ function transformContact(backendContact: BackendContact): DormantLead {
     daysDormant: daysDormant > 0 ? daysDormant : 0,
     dormancyScore: dormancyScore?.totalScore ?? 0,
     leadScore: leadScore || undefined,
+    matchedRuleId: props._matchedRuleId || undefined,
+    matchedRuleName: props._matchedRuleName || undefined,
     lifecycleStage: props.lifecyclestage || undefined,
     createdAt: contact.createdAt,
     properties: props as Record<string, string>,

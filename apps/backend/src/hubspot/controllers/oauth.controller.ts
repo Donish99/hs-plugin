@@ -12,6 +12,8 @@ import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { OAuthService } from '../services/oauth.service';
 import { OAuthStateService } from '../services/oauth-state.service';
+import { DormancyRulesService } from '../../campaigns/services/dormancy-rules.service';
+import { ActionType } from '../../entities/dormancy-rule.entity';
 
 /**
  * Default OAuth scopes required for the plugin
@@ -37,6 +39,7 @@ export class OAuthController {
     private readonly oauthService: OAuthService,
     private readonly oauthStateService: OAuthStateService,
     private readonly configService: ConfigService,
+    private readonly dormancyRulesService: DormancyRulesService,
   ) {
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
   }
@@ -113,6 +116,28 @@ export class OAuthController {
 
       // Save account with encrypted tokens
       const account = await this.oauthService.saveAccount(portalIdNum, tokens);
+
+      // Seed default dormancy rules for new accounts
+      try {
+        const ruleCount = await this.dormancyRulesService.count(account.id);
+        if (ruleCount === 0) {
+          await this.dormancyRulesService.create(account.id, {
+            name: 'Dormant Leads - 30 Days',
+            criteria: { min_days_inactive: 30, no_email_opens_days: 30 },
+            actionType: ActionType.EMAIL,
+            actionConfig: { tone: 'professional' },
+          });
+          await this.dormancyRulesService.create(account.id, {
+            name: 'Highly Dormant - 90 Days',
+            criteria: { min_days_inactive: 90, no_email_opens_days: 90, no_email_clicks_days: 90 },
+            actionType: ActionType.EMAIL,
+            actionConfig: { tone: 'friendly' },
+          });
+          this.logger.log(`Seeded default dormancy rules for account ${account.id}`);
+        }
+      } catch (seedError) {
+        this.logger.warn(`Failed to seed default rules for account ${account.id}`, seedError);
+      }
 
       this.logger.log(`Successfully connected portal ${portalIdNum} (account: ${account.id})`);
 

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLeads, useTriggerScan, useBulkSelectLeads, useCreateCampaignFromLeads } from '@/api/hooks/useLeads';
+import { useRules } from '@/api/hooks/useRules';
 import { LeadsListParams, DormantLead } from '@/api/endpoints/leads';
 import { PageHeader } from '@/components/common/PageHeader';
 import { DataTable, Column } from '@/components/common/DataTable';
@@ -9,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { LeadsFilters } from './LeadsFilters';
 import { LeadDetailDrawer } from './LeadDetailDrawer';
 import { formatDate, formatNumber, downloadCSV } from '@/lib/utils';
-import { Download, RefreshCw, Wand2, Rocket } from 'lucide-react';
+import { Download, RefreshCw, Wand2, Rocket, SearchX } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -47,6 +48,7 @@ export function LeadsPage() {
   const [campaignChannel, setCampaignChannel] = useState<'email' | 'sms' | 'both'>('email');
   const [campaignTone, setCampaignTone] = useState<'professional' | 'friendly' | 'casual'>('professional');
 
+  const { data: rulesData } = useRules();
   const { data, isLoading } = useLeads(filters);
   const triggerScan = useTriggerScan();
   const bulkSelect = useBulkSelectLeads();
@@ -250,6 +252,24 @@ export function LeadsPage() {
       }
     );
   };
+
+  if (rulesData && rulesData.rules.length === 0) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Dormant Leads" description="Identify and re-engage inactive contacts" />
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
+          <SearchX className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold">No Dormancy Rules Configured</h3>
+          <p className="text-sm text-muted-foreground mt-2 max-w-md">
+            Dormancy rules define how to identify inactive leads. Create at least one rule to start scanning for dormant contacts.
+          </p>
+          <Button className="mt-6" onClick={() => navigate('/rules/new')}>
+            Create Rule
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
