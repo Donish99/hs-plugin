@@ -24,7 +24,7 @@ import { QUEUE_NAMES } from '../config/redis.config';
   imports: [
     TypeOrmModule.forFeature([DormancyRule, Campaign, OutreachRecord]),
     BullModule.registerQueue({ name: QUEUE_NAMES.SEND_CAMPAIGN }),
-    HubspotModule,
+    forwardRef(() => HubspotModule),
     forwardRef(() => OutreachModule),
   ],
   controllers: [RulesController, DormantLeadsController, CampaignsController],
