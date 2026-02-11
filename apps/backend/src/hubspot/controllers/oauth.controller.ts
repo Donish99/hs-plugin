@@ -127,14 +127,14 @@ export class OAuthController {
             this.dormancyRuleRepository.create({
               accountId: account.id,
               name: 'Dormant Leads - 30 Days',
-              criteria: { min_days_inactive: 30, no_email_opens_days: 30 },
+              criteria: { min_days_inactive: 30 },
               actionType: ActionType.EMAIL,
               actionConfig: { tone: 'professional' },
             }),
             this.dormancyRuleRepository.create({
               accountId: account.id,
               name: 'Highly Dormant - 90 Days',
-              criteria: { min_days_inactive: 90, no_email_opens_days: 90, no_email_clicks_days: 90 },
+              criteria: { min_days_inactive: 90 },
               actionType: ActionType.EMAIL,
               actionConfig: { tone: 'friendly' },
             }),
