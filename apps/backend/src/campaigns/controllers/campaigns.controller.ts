@@ -645,6 +645,42 @@ export class CampaignsController {
   }
 
   /**
+   * PATCH /api/accounts/:accountId/campaigns/:campaignId/outreach/:recordId
+   * Edit an outreach record's content and auto-approve
+   */
+  @Patch(':campaignId/outreach/:recordId')
+  async editOutreach(
+    @AccountId() accountId: string,
+    @Param('campaignId') campaignId: string,
+    @Param('recordId') recordId: string,
+    @Body() body: { subject?: string; bodyText?: string },
+  ) {
+    const record = await this.campaignService.editOutreachRecord(
+      accountId,
+      campaignId,
+      recordId,
+      body,
+    );
+
+    if (!record) {
+      throw new NotFoundException(`Outreach record ${recordId} not found`);
+    }
+
+    return {
+      success: true,
+      message: 'Outreach record updated and approved',
+      record: {
+        id: record.id,
+        status: record.status,
+        subject: record.subject,
+        bodyText: record.bodyText,
+        contactEmail: record.contactEmail,
+        contactName: record.contactName,
+      },
+    };
+  }
+
+  /**
    * POST /api/accounts/:accountId/campaigns/:campaignId/outreach/:recordId/approve
    * Approve a single outreach record for sending
    */

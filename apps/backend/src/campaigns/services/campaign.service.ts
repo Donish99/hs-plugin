@@ -622,12 +622,49 @@ export class CampaignService {
       return null;
     }
 
-    if (record.status !== OutreachStatus.PENDING) {
+    if (record.status !== OutreachStatus.PENDING && record.status !== OutreachStatus.PENDING_REVIEW) {
       throw new BadRequestException(`Cannot approve record with status ${record.status}`);
     }
 
     if (!record.subject || !record.bodyText) {
       throw new BadRequestException('Cannot approve record without generated message content');
+    }
+
+    record.status = OutreachStatus.APPROVED;
+    return this.outreachRepository.save(record);
+  }
+
+  /**
+   * Edit and approve an outreach record
+   */
+  async editOutreachRecord(
+    accountId: string,
+    campaignId: string,
+    recordId: string,
+    updates: { subject?: string; bodyText?: string },
+  ): Promise<OutreachRecord | null> {
+    const record = await this.outreachRepository.findOne({
+      where: { id: recordId, campaignId, accountId },
+    });
+
+    if (!record) {
+      return null;
+    }
+
+    if (
+      record.status !== OutreachStatus.PENDING &&
+      record.status !== OutreachStatus.PENDING_REVIEW &&
+      record.status !== OutreachStatus.APPROVED
+    ) {
+      throw new BadRequestException(`Cannot edit record with status ${record.status}`);
+    }
+
+    if (updates.subject !== undefined) {
+      record.subject = updates.subject;
+    }
+    if (updates.bodyText !== undefined) {
+      record.bodyText = updates.bodyText;
+      record.bodyHtml = undefined;
     }
 
     record.status = OutreachStatus.APPROVED;
@@ -642,7 +679,10 @@ export class CampaignService {
     campaignId: string,
   ): Promise<{ approvedCount: number; skippedCount: number }> {
     const records = await this.outreachRepository.find({
-      where: { campaignId, accountId, status: OutreachStatus.PENDING },
+      where: [
+        { campaignId, accountId, status: OutreachStatus.PENDING },
+        { campaignId, accountId, status: OutreachStatus.PENDING_REVIEW },
+      ],
     });
 
     let approvedCount = 0;

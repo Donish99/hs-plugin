@@ -8,6 +8,10 @@ import {
   useFailedOutreach,
   useRetryOutreach,
   useRetryAllFailed,
+  useApproveOutreach,
+  useApproveAllOutreach,
+  useSendApproved,
+  useEditOutreach,
 } from '@/api/hooks/useCampaigns';
 import { useCampaignEvents } from '@/api/hooks/useCampaignEvents';
 import { OutreachRecord } from '@/api/endpoints/campaigns';
@@ -29,8 +33,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { formatDateTime, formatNumber, formatPercent } from '@/lib/utils';
-import { ArrowLeft, Play, Pause, RefreshCw, Mail, MessageSquare, Eye, MousePointerClick, MessageCircle, Users, FileText, Loader2, CheckCircle2, XCircle, Clock, AlertTriangle, RotateCcw, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, Play, Pause, RefreshCw, Mail, MessageSquare, Eye, MousePointerClick, MessageCircle, Users, FileText, Loader2, CheckCircle2, XCircle, Clock, AlertTriangle, RotateCcw, ClipboardCheck, Check, Pencil, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMemo, useState } from 'react';
 import { MessageReviewPanel } from './MessageReviewPanel';
@@ -74,7 +80,15 @@ export function CampaignDetailPage() {
   const retryAllFailed = useRetryAllFailed();
   const { data: failedData, isLoading: isFailedLoading } = useFailedOutreach(id || '');
 
+  const approveOutreach = useApproveOutreach();
+  const approveAllOutreach = useApproveAllOutreach();
+  const sendApproved = useSendApproved();
+  const editOutreach = useEditOutreach();
+
   const [selectedMessage, setSelectedMessage] = useState<OutreachRecord | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editSubject, setEditSubject] = useState('');
+  const [editBody, setEditBody] = useState('');
 
   type Lead = { id: string; email: string; name: string; status: 'pending' | 'sent' | 'failed' | 'delivered' | 'opened' | 'clicked' | 'replied'; sentAt?: string };
 
@@ -265,6 +279,66 @@ export function CampaignDetailPage() {
       onError: () => toast({ title: 'Failed to retry messages', variant: 'destructive' }),
     });
   };
+
+  const handleApproveMessage = (record: OutreachRecord) => {
+    approveOutreach.mutate(
+      { campaignId: campaign.id, recordId: record.id },
+      {
+        onSuccess: () => {
+          toast({ title: 'Message approved' });
+          setSelectedMessage(null);
+        },
+        onError: () => toast({ title: 'Failed to approve', variant: 'destructive' }),
+      }
+    );
+  };
+
+  const handleApproveAll = () => {
+    approveAllOutreach.mutate(campaign.id, {
+      onSuccess: (data) => toast({ title: `${data.approvedCount} messages approved` }),
+      onError: () => toast({ title: 'Failed to approve messages', variant: 'destructive' }),
+    });
+  };
+
+  const handleSendApproved = () => {
+    sendApproved.mutate(campaign.id, {
+      onSuccess: (data) => toast({ title: `${data.queuedCount} messages queued for sending` }),
+      onError: () => toast({ title: 'Failed to send messages', variant: 'destructive' }),
+    });
+  };
+
+  const handleStartEdit = (record: OutreachRecord) => {
+    setEditSubject(record.subject || '');
+    setEditBody(record.bodyText || '');
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!selectedMessage) return;
+    editOutreach.mutate(
+      {
+        campaignId: campaign.id,
+        recordId: selectedMessage.id,
+        updates: { subject: editSubject, bodyText: editBody },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: 'Message updated and approved' });
+          setIsEditing(false);
+          setSelectedMessage(null);
+        },
+        onError: () => toast({ title: 'Failed to update message', variant: 'destructive' }),
+      }
+    );
+  };
+
+  const pendingReviewCount = outreachData?.records?.filter(
+    (r) => r.status === 'pending_review' || r.status === 'pending'
+  ).length || 0;
+
+  const approvedCount = outreachData?.records?.filter(
+    (r) => r.status === 'approved'
+  ).length || 0;
 
   const failedCount = failedData?.total || progressData.failed || 0;
 
@@ -509,8 +583,39 @@ export function CampaignDetailPage() {
         </TabsContent>
         <TabsContent value="messages" className="mt-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Sent Messages</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Messages</CardTitle>
+              <div className="flex items-center gap-2">
+                {pendingReviewCount > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleApproveAll}
+                    disabled={approveAllOutreach.isPending}
+                  >
+                    {approveAllOutreach.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4 mr-2" />
+                    )}
+                    Approve All ({pendingReviewCount})
+                  </Button>
+                )}
+                {approvedCount > 0 && (
+                  <Button
+                    size="sm"
+                    onClick={handleSendApproved}
+                    disabled={sendApproved.isPending}
+                  >
+                    {sendApproved.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-2" />
+                    )}
+                    Send Approved ({approvedCount})
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {isOutreachLoading ? (
@@ -729,7 +834,7 @@ export function CampaignDetailPage() {
       </Tabs>
 
       {/* Message Detail Dialog */}
-      <Dialog open={!!selectedMessage} onOpenChange={() => setSelectedMessage(null)}>
+      <Dialog open={!!selectedMessage} onOpenChange={() => { setSelectedMessage(null); setIsEditing(false); }}>
         <DialogContent className="max-w-2xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -767,6 +872,8 @@ export function CampaignDetailPage() {
                           ? 'success'
                           : selectedMessage.status === 'failed' || selectedMessage.status === 'bounced'
                           ? 'destructive'
+                          : selectedMessage.status === 'approved'
+                          ? 'default'
                           : 'secondary'
                       }
                       className="capitalize"
@@ -800,34 +907,123 @@ export function CampaignDetailPage() {
                   )}
                 </div>
 
-                {/* Subject (for emails) */}
-                {selectedMessage.channel === 'email' && selectedMessage.subject && (
-                  <div className="border-t pt-4">
-                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Subject</h4>
-                    <p className="font-medium">{selectedMessage.subject}</p>
+                {isEditing ? (
+                  /* Edit Mode */
+                  <div className="border-t pt-4 space-y-4">
+                    {selectedMessage.channel === 'email' && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground mb-1 block">Subject</label>
+                        <Input
+                          value={editSubject}
+                          onChange={(e) => setEditSubject(e.target.value)}
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground mb-1 block">
+                        {selectedMessage.channel === 'email' ? 'Email Body' : 'Message'}
+                      </label>
+                      <Textarea
+                        value={editBody}
+                        onChange={(e) => setEditBody(e.target.value)}
+                        rows={10}
+                        className="font-mono text-sm"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setIsEditing(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveEdit}
+                        disabled={editOutreach.isPending}
+                      >
+                        {editOutreach.isPending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4 mr-2" />
+                        )}
+                        Save & Approve
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Subject (for emails) */}
+                    {selectedMessage.channel === 'email' && selectedMessage.subject && (
+                      <div className="border-t pt-4">
+                        <h4 className="text-sm font-medium text-muted-foreground mb-1">Subject</h4>
+                        <p className="font-medium">{selectedMessage.subject}</p>
+                      </div>
+                    )}
+
+                    {/* Message Body */}
+                    <div className="border-t pt-4">
+                      <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                        {selectedMessage.channel === 'email' ? 'Email Body' : 'Message'}
+                      </h4>
+                      {selectedMessage.bodyHtml ? (
+                        <div
+                          className="prose prose-sm max-w-none rounded-lg border bg-muted/30 p-4"
+                          dangerouslySetInnerHTML={{ __html: selectedMessage.bodyHtml }}
+                        />
+                      ) : selectedMessage.bodyText ? (
+                        <div className="rounded-lg border bg-muted/30 p-4 whitespace-pre-wrap text-sm">
+                          {selectedMessage.bodyText}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          Message content not available
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Action Buttons for pending/pending_review messages */}
+                {!isEditing && (selectedMessage.status === 'pending_review' || selectedMessage.status === 'pending') && (
+                  <div className="border-t pt-4 flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleStartEdit(selectedMessage)}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleApproveMessage(selectedMessage)}
+                      disabled={approveOutreach.isPending}
+                    >
+                      {approveOutreach.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Check className="h-4 w-4 mr-2" />
+                      )}
+                      Approve
+                    </Button>
                   </div>
                 )}
 
-                {/* Message Body */}
-                <div className="border-t pt-4">
-                  <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                    {selectedMessage.channel === 'email' ? 'Email Body' : 'Message'}
-                  </h4>
-                  {selectedMessage.bodyHtml ? (
-                    <div
-                      className="prose prose-sm max-w-none rounded-lg border bg-muted/30 p-4"
-                      dangerouslySetInnerHTML={{ __html: selectedMessage.bodyHtml }}
-                    />
-                  ) : selectedMessage.bodyText ? (
-                    <div className="rounded-lg border bg-muted/30 p-4 whitespace-pre-wrap text-sm">
-                      {selectedMessage.bodyText}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground italic">
-                      Message content not available
-                    </p>
-                  )}
-                </div>
+                {/* Action Button for approved messages */}
+                {!isEditing && selectedMessage.status === 'approved' && (
+                  <div className="border-t pt-4 flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleStartEdit(selectedMessage)}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Badge variant="default" className="py-1.5 px-3">
+                      <Check className="h-3 w-3 mr-1" />
+                      Approved
+                    </Badge>
+                  </div>
+                )}
               </div>
             </ScrollArea>
           )}

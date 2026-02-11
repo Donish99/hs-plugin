@@ -286,6 +286,42 @@ export const campaignsApi = {
   },
 
   /**
+   * Edit an outreach record's content and auto-approve
+   */
+  editOutreach: async (campaignId: string, recordId: string, updates: {
+    subject?: string;
+    bodyText?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    record: {
+      id: string;
+      status: OutreachStatus;
+      subject?: string;
+      bodyText?: string;
+      contactEmail?: string;
+      contactName?: string;
+    };
+  }> => {
+    const response = await apiClient.patch<{
+      success: boolean;
+      message: string;
+      record: {
+        id: string;
+        status: OutreachStatus;
+        subject?: string;
+        bodyText?: string;
+        contactEmail?: string;
+        contactName?: string;
+      };
+    }>(
+      withAccountId(`/campaigns/${campaignId}/outreach/${recordId}`),
+      updates
+    );
+    return response.data;
+  },
+
+  /**
    * Approve a single outreach record for sending
    */
   approveOutreach: async (campaignId: string, recordId: string): Promise<{

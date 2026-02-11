@@ -180,6 +180,22 @@ export function useGenerateMessages() {
   });
 }
 
+export function useEditOutreach() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ campaignId, recordId, updates }: {
+      campaignId: string;
+      recordId: string;
+      updates: { subject?: string; bodyText?: string };
+    }) =>
+      campaignsApi.editOutreach(campaignId, recordId, updates),
+    onSuccess: (_, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: campaignsKeys.outreach(campaignId, undefined) });
+    },
+  });
+}
+
 export function useApproveOutreach() {
   const queryClient = useQueryClient();
 
