@@ -4,7 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import { OAuthController } from './oauth.controller';
 import { OAuthService, TokenResponse } from '../services/oauth.service';
 import { OAuthStateService } from '../services/oauth-state.service';
-import { DormancyRulesService } from '../../campaigns/services/dormancy-rules.service';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { DormancyRule } from '../../entities/dormancy-rule.entity';
 import { Response } from 'express';
 
 describe('OAuthController', () => {
@@ -28,9 +29,10 @@ describe('OAuthController', () => {
     get: jest.fn().mockReturnValue('http://localhost:5173'),
   };
 
-  const mockDormancyRulesService = {
+  const mockDormancyRuleRepository = {
     count: jest.fn().mockResolvedValue(0),
-    create: jest.fn().mockResolvedValue({ id: 'rule-1' }),
+    create: jest.fn().mockImplementation((data) => data),
+    save: jest.fn().mockResolvedValue([]),
   };
 
   const mockResponse = {
@@ -54,8 +56,8 @@ describe('OAuthController', () => {
           useValue: mockConfigService,
         },
         {
-          provide: DormancyRulesService,
-          useValue: mockDormancyRulesService,
+          provide: getRepositoryToken(DormancyRule),
+          useValue: mockDormancyRuleRepository,
         },
       ],
     }).compile();

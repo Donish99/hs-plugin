@@ -1,7 +1,8 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
 import { HubspotAccount } from '../entities/hubspot-account.entity';
+import { DormancyRule } from '../entities/dormancy-rule.entity';
 import { OAuthService } from './services/oauth.service';
 import { OAuthStateService } from './services/oauth-state.service';
 import { ContactsService } from './services/contacts.service';
@@ -9,18 +10,16 @@ import { WebhooksService } from './services/webhooks.service';
 import { TokenValidationMiddleware } from './middleware/token-validation.middleware';
 import { OAuthController } from './controllers/oauth.controller';
 import { WebhooksController } from './controllers/webhooks.controller';
-import { CampaignsModule } from '../campaigns/campaigns.module';
 
 /**
  * HubSpot module - handles OAuth, contacts, and webhook integrations
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([HubspotAccount]),
+    TypeOrmModule.forFeature([HubspotAccount, DormancyRule]),
     BullModule.registerQueue({
       name: 'webhook-processing',
     }),
-    forwardRef(() => CampaignsModule),
   ],
   controllers: [OAuthController, WebhooksController],
   providers: [OAuthService, OAuthStateService, ContactsService, WebhooksService, TokenValidationMiddleware],

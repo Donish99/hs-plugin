@@ -10,10 +10,11 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { OAuthService } from '../services/oauth.service';
 import { OAuthStateService } from '../services/oauth-state.service';
-import { DormancyRulesService } from '../../campaigns/services/dormancy-rules.service';
-import { ActionType } from '../../entities/dormancy-rule.entity';
+import { DormancyRule, ActionType } from '../../entities/dormancy-rule.entity';
 
 /**
  * Default OAuth scopes required for the plugin
@@ -39,7 +40,8 @@ export class OAuthController {
     private readonly oauthService: OAuthService,
     private readonly oauthStateService: OAuthStateService,
     private readonly configService: ConfigService,
-    private readonly dormancyRulesService: DormancyRulesService,
+    @InjectRepository(DormancyRule)
+    private readonly dormancyRuleRepository: Repository<DormancyRule>,
   ) {
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
   }
@@ -119,20 +121,24 @@ export class OAuthController {
 
       // Seed default dormancy rules for new accounts
       try {
-        const ruleCount = await this.dormancyRulesService.count(account.id);
+        const ruleCount = await this.dormancyRuleRepository.count({ where: { accountId: account.id } });
         if (ruleCount === 0) {
-          await this.dormancyRulesService.create(account.id, {
-            name: 'Dormant Leads - 30 Days',
-            criteria: { min_days_inactive: 30, no_email_opens_days: 30 },
-            actionType: ActionType.EMAIL,
-            actionConfig: { tone: 'professional' },
-          });
-          await this.dormancyRulesService.create(account.id, {
-            name: 'Highly Dormant - 90 Days',
-            criteria: { min_days_inactive: 90, no_email_opens_days: 90, no_email_clicks_days: 90 },
-            actionType: ActionType.EMAIL,
-            actionConfig: { tone: 'friendly' },
-          });
+          await this.dormancyRuleRepository.save([
+            this.dormancyRuleRepository.create({
+              accountId: account.id,
+              name: 'Dormant Leads - 30 Days',
+              criteria: { min_days_inactive: 30, no_email_opens_days: 30 },
+              actionType: ActionType.EMAIL,
+              actionConfig: { tone: 'professional' },
+            }),
+            this.dormancyRuleRepository.create({
+              accountId: account.id,
+              name: 'Highly Dormant - 90 Days',
+              criteria: { min_days_inactive: 90, no_email_opens_days: 90, no_email_clicks_days: 90 },
+              actionType: ActionType.EMAIL,
+              actionConfig: { tone: 'friendly' },
+            }),
+          ]);
           this.logger.log(`Seeded default dormancy rules for account ${account.id}`);
         }
       } catch (seedError) {
